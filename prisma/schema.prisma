@@ -1,0 +1,175 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  USER
+  CREATOR
+  ADMIN
+}
+
+enum PostVisibility {
+  public
+  followers
+  private
+}
+
+model User {
+  id            String         @id @default(cuid())
+  email         String         @unique
+  username      String         @unique
+  passwordHash  String
+  name          String
+  bio           String?
+  website       String?
+  avatarUrl     String?
+  coverUrl      String?
+  role          Role           @default(USER)
+  isVerified    Boolean        @default(false)
+  status        String         @default("active")
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  posts         Post[]
+  media         Media[]
+  likes         Like[]
+  comments      Comment[]
+  bookmarks     Bookmark[]
+  stories       Story[]
+  reels         Reel[]
+  notifications Notification[]
+  
+  followers     Follow[]       @relation("UserFollowers")
+  following     Follow[]       @relation("UserFollowing")
+}
+
+model Post {
+  id          String         @id @default(cuid())
+  userId      String
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  caption     String
+  location    String?
+  visibility  PostVisibility @default(public)
+  isReel      Boolean        @default(false)
+  tags        String[]
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  media       Media[]
+  likes       Like[]
+  comments    Comment[]
+  bookmarks   Bookmark[]
+  reel        Reel?
+}
+
+model Media {
+  id                 String   @id @default(cuid())
+  userId             String
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  postId             String?
+  post               Post?    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  cloudinaryAssetId  String
+  cloudinaryPublicId String
+  resourceType       String   // image | video
+  format             String
+  width              Int
+  height             Int
+  duration           Float?
+  bytes              Int
+  thumbnailUrl       String
+  optimizedUrl       String
+  originalUrl        String
+  folder             String?
+  status             String   @default("ready") // ready | processing | flagged
+  metadata           Json?
+  createdAt          DateTime @default(now())
+}
+
+model Reel {
+  id              String   @id @default(cuid())
+  postId          String   @unique
+  post            Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  videoUrl        String
+  posterUrl       String
+  audioTrackTitle String   @default("Original Audio")
+  viewsCount      Int      @default(0)
+  duration        Float    @default(0)
+  createdAt       DateTime @default(now())
+}
+
+model Story {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mediaUrl        String
+  resourceType    String   @default("image")
+  durationSeconds Int      @default(15)
+  expiresAt       DateTime
+  createdAt       DateTime @default(now())
+}
+
+model Like {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, postId])
+}
+
+model Comment {
+  id        String    @id @default(cuid())
+  postId    String
+  post      Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parentId  String?
+  parent    Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   Comment[] @relation("CommentReplies")
+  content   String
+  createdAt DateTime  @default(now())
+}
+
+model Bookmark {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, postId])
+}
+
+model Follow {
+  id          String   @id @default(cuid())
+  followerId  String
+  follower    User     @relation("UserFollowing", fields: [followerId], references: [id], onDelete: Cascade)
+  followingId String
+  following   User     @relation("UserFollowers", fields: [followingId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+
+  @@unique([followerId, followingId])
+}
+
+model Notification {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fromUserId     String
+  type           String   // like | comment | follow | mention
+  message        String
+  postId         String?
+  postPreviewUrl String?
+  isRead         Boolean  @default(false)
+  createdAt      DateTime @default(now())
+}
