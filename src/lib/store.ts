@@ -138,14 +138,36 @@ class MediaGramStore {
     },
   ];
 
+  // Persistence / sync bookkeeping
+  private hydrated = false;
+  private saveTimer: ReturnType<typeof setTimeout> | null = null;
+  private deletedPostIds: Set<string> = new Set();
+  private recentlyEdited: Map<string, number> = new Map();
+  private lastRemoteSync = 0;
+  private remoteSyncPromise: Promise<void> | null = null;
+
   constructor() {
     // Hydration Safety: do NOT call loadFromStorage() in constructor during module load.
     // Client components call store.loadFromStorage() within useEffect() to ensure
     // initial SSR and client renders match 100% identically without hydration mismatch.
   }
 
+  /** Debounced: coalesces bursts of likes/comments into a single localStorage write */
   public saveToStorage() {
     if (typeof window === 'undefined') return;
+    if (this.saveTimer) return;
+    this.saveTimer = setTimeout(() => {
+      this.saveTimer = null;
+      this.persistNow();
+    }, 500);
+  }
+
+  public persistNow() {
+    if (typeof window === 'undefined') return;
+    if (this.saveTimer) {
+      clearTimeout(this.saveTimer);
+      this.saveTimer = null;
+    }
     try {
       localStorage.setItem('mediagram:posts', JSON.stringify(this.posts));
       localStorage.setItem('mediagram:reels', JSON.stringify(this.reels));
@@ -155,20 +177,49 @@ class MediaGramStore {
       localStorage.setItem('mediagram:currentUserId', this.currentUserId);
       localStorage.setItem('mediagram:authenticated', JSON.stringify(this.authenticated));
       localStorage.setItem('mediagram:following', JSON.stringify(Array.from(this.followingUserIds)));
+      localStorage.setItem('mediagram:deleted_posts', JSON.stringify(Array.from(this.deletedPostIds)));
     } catch (e) {
       console.warn('Storage save failed:', e);
     }
   }
 
+  /** True when a media URL can't survive a page reload (temporary browser-only URL) */
+  private isEphemeralUrl(url?: string): boolean {
+    return !!url && (url.startsWith('blob:') || url.startsWith('data:video'));
+  }
+
+  /** Hydrates once per page session; the in-memory singleton is the source of truth afterwards */
   public loadFromStorage() {
     if (typeof window === 'undefined') return;
+    if (this.hydrated) return;
+    this.hydrated = true;
+
+    // Make sure pending changes are flushed when the tab is hidden/closed
+    window.addEventListener('beforeunload', () => this.persistNow());
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') this.persistNow();
+    });
+
     try {
+      const storedDeleted = localStorage.getItem('mediagram:deleted_posts');
+      if (storedDeleted) {
+        try {
+          const parsed = JSON.parse(storedDeleted);
+          if (Array.isArray(parsed)) this.deletedPostIds = new Set(parsed);
+        } catch {}
+      }
+
       const storedPosts = localStorage.getItem('mediagram:posts');
       if (storedPosts) {
         try {
           const parsed = JSON.parse(storedPosts);
           if (Array.isArray(parsed) && parsed.length > 0) {
-            this.posts = parsed;
+            // Drop posts whose media only existed as a temporary blob: URL (they can never play again)
+            this.posts = parsed.filter(
+              (p: Post) =>
+                !this.deletedPostIds.has(p.id) &&
+                !(p.media || []).some((m) => this.isEphemeralUrl(m.originalUrl) || this.isEphemeralUrl(m.optimizedUrl))
+            );
           }
         } catch {}
       }
@@ -178,7 +229,14 @@ class MediaGramStore {
         try {
           const parsed = JSON.parse(storedReels);
           if (Array.isArray(parsed) && parsed.length > 0) {
-            this.reels = parsed;
+            const livePostIds = new Set(this.posts.map((p) => p.id));
+            this.reels = parsed.filter(
+              (r: Reel) =>
+                !this.isEphemeralUrl(r.videoUrl) &&
+                !this.deletedPostIds.has(r.postId) &&
+                // reels created from uploaded posts must still have their post
+                (!r.postId || !r.postId.startsWith('post_') || livePostIds.has(r.postId) || !r.id.startsWith('reel_'))
+            );
           }
         } catch {}
       }
@@ -188,7 +246,7 @@ class MediaGramStore {
         try {
           const parsed = JSON.parse(storedStories);
           if (Array.isArray(parsed) && parsed.length > 0) {
-            this.stories = parsed;
+            this.stories = parsed.filter((s: Story) => !this.isEphemeralUrl(s.mediaUrl));
           }
         } catch {}
       }
@@ -213,6 +271,161 @@ class MediaGramStore {
     } catch (e) {
       console.warn('Storage load failed:', e);
     }
+  }
+
+  private emitUpdate() {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('beesocial:store_updated'));
+    }
+  }
+
+  // --- Public shared posts (stored on Cloudinary, visible to every visitor) ---
+  private isRemotePost(post: Post): boolean {
+    const m = post.media?.[0];
+    return !!m && !!m.publicId && m.publicId.startsWith('mediagram/users/') && !String(m.assetId).startsWith('local_');
+  }
+
+  private reelFromPost(post: Post): Reel | null {
+    const vid = post.media?.[0];
+    if (!vid || vid.resourceType !== 'video') return null;
+    return {
+      id: `reel_${post.id}`,
+      postId: post.id,
+      userId: post.userId,
+      user: post.user,
+      videoUrl: vid.optimizedUrl || vid.originalUrl,
+      posterUrl: vid.thumbnailUrl || getVideoPosterUrl(vid.originalUrl),
+      audioTrackTitle: `${post.user.name} · Original Audio`,
+      caption: post.caption,
+      likesCount: post.likesCount,
+      commentsCount: post.commentsCount,
+      sharesCount: post.sharesCount,
+      viewsCount: 1,
+      duration: vid.duration || 15,
+      isLiked: false,
+      isBookmarked: false,
+      createdAt: post.createdAt,
+    };
+  }
+
+  private async publishPostRemote(post: Post, audioTrackTitle?: string, attempt = 0): Promise<void> {
+    if (typeof window === 'undefined' || !this.isRemotePost(post)) return;
+    const m = post.media[0];
+    try {
+      const res = await fetch('/api/posts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          publicId: m.publicId,
+          resourceType: m.resourceType,
+          postId: post.id,
+          caption: post.caption,
+          location: post.location,
+          tags: post.tags,
+          audioTrackTitle,
+          user: post.user,
+        }),
+      });
+      if (!res.ok) throw new Error(`Publish failed (${res.status})`);
+      this.lastRemoteSync = 0; // next sync picks up the freshly published post
+    } catch (e) {
+      if (attempt < 3) {
+        setTimeout(() => this.publishPostRemote(post, audioTrackTitle, attempt + 1), 1500 * (attempt + 1));
+      } else {
+        console.warn('Could not publish post to the public feed:', e);
+      }
+    }
+  }
+
+  /**
+   * Pulls every public post from the shared backend and merges it into the local store.
+   * Safe to call often: single-flight + 15s throttle.
+   */
+  public syncRemotePosts(force = false): Promise<void> {
+    if (typeof window === 'undefined') return Promise.resolve();
+    if (this.remoteSyncPromise) return this.remoteSyncPromise;
+    if (!force && Date.now() - this.lastRemoteSync < 15000) return Promise.resolve();
+
+    this.remoteSyncPromise = (async () => {
+      try {
+        const res = await fetch('/api/posts', { cache: 'no-store' });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data?.success || !Array.isArray(data.posts)) return;
+        this.lastRemoteSync = Date.now();
+
+        const remote: Post[] = data.posts;
+        const remoteIds = new Set(remote.map((p) => p.id));
+        const now = Date.now();
+        let changed = false;
+
+        const localIndex = new Map<string, number>();
+        this.posts.forEach((p, i) => localIndex.set(p.id, i));
+
+        const toAdd: Post[] = [];
+        for (const rp of remote) {
+          if (this.deletedPostIds.has(rp.id)) continue;
+          const idx = localIndex.get(rp.id);
+          if (idx === undefined) {
+            toAdd.push(rp);
+            continue;
+          }
+          const lp = this.posts[idx];
+          const editedAt = this.recentlyEdited.get(rp.id) || 0;
+          if (now - editedAt < 2 * 60 * 1000) continue; // don't overwrite a just-saved local edit with a cached copy
+          if (
+            lp.caption !== rp.caption ||
+            (lp.location || '') !== (rp.location || '') ||
+            (lp.tags || []).join(',') !== (rp.tags || []).join(',') ||
+            lp.media[0]?.optimizedUrl !== rp.media[0]?.optimizedUrl
+          ) {
+            this.posts[idx] = { ...lp, caption: rp.caption, location: rp.location, tags: rp.tags, media: rp.media };
+            const reel = this.reels.find((r) => r.postId === rp.id);
+            if (reel) reel.caption = rp.caption;
+            changed = true;
+          }
+        }
+
+        if (toAdd.length > 0) {
+          this.posts.unshift(...toAdd);
+          for (const p of toAdd) {
+            const reel = this.reelFromPost(p);
+            if (reel && !this.reels.some((r) => r.postId === p.id)) this.reels.unshift(reel);
+          }
+          changed = true;
+        }
+
+        // Posts deleted from another device disappear here too (only when the list isn't truncated)
+        if (!data.truncated) {
+          const gone = new Set<string>();
+          for (const p of this.posts) {
+            if (
+              this.isRemotePost(p) &&
+              !remoteIds.has(p.id) &&
+              now - new Date(p.createdAt).getTime() > 3 * 60 * 1000
+            ) {
+              gone.add(p.id);
+            }
+          }
+          if (gone.size > 0) {
+            this.posts = this.posts.filter((p) => !gone.has(p.id));
+            this.reels = this.reels.filter((r) => !gone.has(r.postId));
+            changed = true;
+          }
+        }
+
+        if (changed) {
+          this.saveToStorage();
+          this.emitUpdate();
+        }
+      } catch (e) {
+        console.warn('Public post sync skipped:', e);
+      } finally {
+        this.remoteSyncPromise = null;
+      }
+    })();
+
+    return this.remoteSyncPromise;
   }
 
   // --- Normal Customer Auth ---
@@ -773,13 +986,93 @@ class MediaGramStore {
     }
 
     this.saveToStorage();
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('beesocial:store_updated'));
-    }
+    this.emitUpdate();
+
+    // Publish to the shared public feed in the background (retries automatically)
+    void this.publishPostRemote(newPost, data.audioTrackTitle);
 
     return newPost;
   }
 
+  /** Owner-only: edit caption / location / tags of a post */
+  updatePost(postId: string, changes: { caption?: string; location?: string; tags?: string[] }): Post {
+    const idx = this.posts.findIndex((p) => p.id === postId);
+    if (idx === -1) throw new Error('Post not found');
+    const existing = this.posts[idx];
+    if (existing.userId !== this.currentUserId) {
+      throw new Error('You can only edit your own posts.');
+    }
+
+    const updated: Post = {
+      ...existing,
+      caption: changes.caption !== undefined ? changes.caption : existing.caption,
+      location: changes.location !== undefined ? changes.location || undefined : existing.location,
+      tags: changes.tags !== undefined ? changes.tags : existing.tags,
+    };
+    // New object identity so memoized views re-render
+    this.posts[idx] = updated;
+
+    const reel = this.reels.find((r) => r.postId === postId);
+    if (reel) reel.caption = updated.caption;
+
+    this.recentlyEdited.set(postId, Date.now());
+    this.saveToStorage();
+    this.emitUpdate();
+
+    if (this.isRemotePost(updated)) {
+      const m = updated.media[0];
+      fetch('/api/posts', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          publicId: m.publicId,
+          resourceType: m.resourceType,
+          userId: updated.userId,
+          caption: updated.caption,
+          location: updated.location || '',
+          tags: updated.tags,
+        }),
+      }).catch((e) => console.warn('Could not sync edit to the public feed:', e));
+    }
+
+    return updated;
+  }
+
+  /** Removes a post locally and (for public posts) deletes the stored media from the cloud */
+  private removePost(postId: string): boolean {
+    const post = this.posts.find((p) => p.id === postId);
+    if (!post) return false;
+
+    this.posts = this.posts.filter((p) => p.id !== postId);
+    this.reels = this.reels.filter((r) => r.postId !== postId);
+    this.deletedPostIds.add(postId);
+
+    const author = this.users.find((u) => u.id === post.userId);
+    if (author && author.postsCount > 0) author.postsCount -= 1;
+
+    this.saveToStorage();
+    this.emitUpdate();
+
+    if (this.isRemotePost(post)) {
+      const m = post.media[0];
+      fetch('/api/posts', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ publicId: m.publicId, resourceType: m.resourceType, userId: post.userId }),
+      }).catch((e) => console.warn('Could not delete cloud media:', e));
+    }
+    return true;
+  }
+
+  /** Owner-only: permanently delete a post */
+  deletePost(postId: string): boolean {
+    const post = this.posts.find((p) => p.id === postId);
+    if (!post) return false;
+    if (post.userId !== this.currentUserId) {
+      throw new Error('You can only delete your own posts.');
+    }
+    return this.removePost(postId);
+  }
 
 
   toggleLikePost(postId: string): { isLiked: boolean; likesCount: number } {
@@ -1291,13 +1584,7 @@ class MediaGramStore {
   }
 
   deletePostAdmin(postId: string): boolean {
-    const idx = this.posts.findIndex(p => p.id === postId);
-    if (idx !== -1) {
-      this.posts.splice(idx, 1);
-      this.reels = this.reels.filter(r => r.postId !== postId);
-      return true;
-    }
-    return false;
+    return this.removePost(postId);
   }
 
   updateUserRole(userId: string, role: 'USER' | 'CREATOR' | 'ADMIN'): boolean {

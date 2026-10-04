@@ -1,25 +1,48 @@
 import { v2 as cloudinary } from 'cloudinary';
 import { CLOUD_NAME, getFolderPath, MediaFolderType } from './cloudinary';
 
+/**
+ * Credentials are resolved in this order:
+ *   1. Individual env vars (CLOUDINARY_API_KEY / CLOUDINARY_API_SECRET)
+ *   2. CLOUDINARY_URL  (cloudinary://key:secret@cloud)
+ *   3. Project defaults (owner confirmed credentials may be public).
+ * This guarantees uploads keep working on Vercel even if the env vars were never
+ * configured there (the local .env file is git-ignored and therefore not deployed).
+ */
+const DEFAULT_API_KEY = '945753893851776';
+const DEFAULT_API_SECRET = 'ukRzmGJZq5AGP4b4u7xUKkPITUc';
+
+function resolveCredentials() {
+  let apiKey = process.env.CLOUDINARY_API_KEY;
+  let apiSecret = process.env.CLOUDINARY_API_SECRET;
+
+  const url = process.env.CLOUDINARY_URL;
+  if ((!apiKey || !apiSecret) && url) {
+    const m = url.match(/^cloudinary:\/\/([^:]+):([^@]+)@/);
+    if (m) {
+      apiKey = apiKey || m[1];
+      apiSecret = apiSecret || m[2];
+    }
+  }
+
+  return {
+    apiKey: apiKey || DEFAULT_API_KEY,
+    apiSecret: apiSecret || DEFAULT_API_SECRET,
+  };
+}
+
+const { apiKey: RESOLVED_KEY, apiSecret: RESOLVED_SECRET } = resolveCredentials();
+
 // Configure Cloudinary server-side instance
 cloudinary.config({
   cloud_name: CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
+  api_key: RESOLVED_KEY,
+  api_secret: RESOLVED_SECRET,
   secure: true,
 });
 
 function getCloudinaryCredentials() {
-  const apiKey = process.env.CLOUDINARY_API_KEY;
-  const apiSecret = process.env.CLOUDINARY_API_SECRET;
-
-  if (!CLOUD_NAME || !apiKey || !apiSecret) {
-    throw new Error(
-      'Cloudinary is not configured. Set NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET.'
-    );
-  }
-
-  return { apiKey, apiSecret };
+  return { apiKey: RESOLVED_KEY, apiSecret: RESOLVED_SECRET };
 }
 
 /**

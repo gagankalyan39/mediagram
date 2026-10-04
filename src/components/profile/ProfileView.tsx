@@ -186,6 +186,16 @@ export function ProfileView({
     window.dispatchEvent(new CustomEvent('beesocial:store_updated'));
   };
 
+  const handleProfilePostDeleted = (postId: string) => {
+    setPosts((prev) => prev.filter((p) => p.id !== postId));
+    window.dispatchEvent(new CustomEvent('beesocial:store_updated'));
+  };
+
+  const handleProfilePostEdited = (postId: string, caption: string) => {
+    setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, caption } : p));
+    window.dispatchEvent(new CustomEvent('beesocial:store_updated'));
+  };
+
   // Smoothly scroll to the clicked target post in feed view
   useEffect(() => {
     if (viewMode === 'feed' && targetPostId) {
@@ -236,13 +246,11 @@ export function ProfileView({
             <div className="flex items-center gap-2">
               {isOwnProfile ? (
                 <>
-                  <GlassButton
-                    size="sm"
-                    variant="secondary"
-                    onClick={onOpenAccountSwitcher}
-                  >
-                    Switch Account
-                  </GlassButton>
+                  <Link href="/settings">
+                    <GlassButton size="sm" variant="secondary">
+                      Edit Profile
+                    </GlassButton>
+                  </Link>
                   <Link href="/settings">
                     <GlassButton size="icon" variant="ghost" title="Settings & Privacy">
                       <Settings className="w-4 h-4" />
@@ -388,6 +396,8 @@ export function ProfileView({
                     onToggleLike={handlePostLike}
                     onToggleBookmark={handlePostBookmark}
                     onAddComment={handlePostComment}
+                    onPostDeleted={handleProfilePostDeleted}
+                    onPostEdited={handleProfilePostEdited}
                   />
                 </div>
               ))

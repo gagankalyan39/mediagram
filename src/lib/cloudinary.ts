@@ -88,14 +88,18 @@ export function getVideoPosterUrl(publicIdOrUrl: string, options?: {
 
   // If already a Cloudinary delivery URL - strip existing transforms first to avoid double-injection
   if (publicIdOrUrl.includes('res.cloudinary.com') && publicIdOrUrl.includes('/video/upload/')) {
-    // Remove any existing transform segment (everything between /video/upload/ and the public_id path)
-    const cleanUrl = publicIdOrUrl.replace(
-      /\/video\/upload\/([^/]+\/)*(?=[a-z0-9_-]+(?:\/[a-z0-9_-]+)*\.)/,
-      '/video/upload/'
-    );
-    return cleanUrl
-      .replace('/video/upload/', `/video/upload/${width}${height}${so}c_fill,f_jpg,q_auto/`)
-      .replace(/\.mp4(\?.*)?$/, '.jpg');
+    const [head, tail] = publicIdOrUrl.split('/video/upload/');
+    const segments = tail.split('?')[0].split('/');
+    // Drop leading transformation segments (e.g. "q_auto,vc_auto"); stop at version (v123) or the public id folders
+    while (
+      segments.length > 1 &&
+      !/^v\d+$/.test(segments[0]) &&
+      /^[a-z]{1,3}_[^/]+$/.test(segments[0])
+    ) {
+      segments.shift();
+    }
+    const cleanPath = segments.join('/').replace(/\.[a-z0-9]+$/i, '.jpg');
+    return `${head}/video/upload/${width}${height}${so}c_fill,f_jpg,q_auto/${cleanPath}`;
   }
 
   // Plain /video/upload/ URL (no full domain)
@@ -117,6 +121,24 @@ export function getVideoPosterUrl(publicIdOrUrl: string, options?: {
 }
 
 export const getCloudinaryVideoThumbnail = getVideoPosterUrl;
+
+/**
+ * Returns a URL that every browser can play for a freshly uploaded video.
+ * Always applies f_mp4,vc_h264,ac_aac so even native mp4 files with
+ * non-standard codecs (H.265, VP9, etc.) are reliably re-encoded to H.264.
+ */
+export function getPlayableVideoUrl(secureUrl: string, format?: string): string {
+  if (!secureUrl) return secureUrl;
+  // If already has our transcode transform, return as-is
+  if (secureUrl.includes('vc_h264')) return secureUrl;
+  // Apply transform to Cloudinary URLs only
+  if (secureUrl.includes('/video/upload/')) {
+    return secureUrl
+      .replace('/video/upload/', '/video/upload/f_mp4,vc_h264,ac_aac/')
+      .replace(/\.[a-z0-9]+(\?.*)?$/i, '.mp4');
+  }
+  return secureUrl;
+}
 
 /**
  * Optimized Video Delivery (adaptive format, auto quality)

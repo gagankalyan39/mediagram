@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cloudinary } from '@/lib/cloudinary-server';
-import { getFolderPath, MediaFolderType, getOptimizedImageUrl, getVideoPosterUrl, getOptimizedVideoUrl } from '@/lib/cloudinary';
+import { getFolderPath, MediaFolderType, getOptimizedImageUrl, getVideoPosterUrl, getPlayableVideoUrl } from '@/lib/cloudinary';
 import fs from 'fs';
 import path from 'path';
 
@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    const folder = getFolderPath(folderType);
+    const folder = getFolderPath(folderType, userId);
     const tags = tagsString
       .split(',')
       .map((t) => t.trim())
@@ -95,8 +95,8 @@ export async function POST(request: NextRequest) {
       const format = uploadResult.format || (isVideo ? 'mp4' : 'webp');
       const originalUrl = uploadResult.secure_url;
       const optimizedUrl = isVideo
-        ? getOptimizedVideoUrl(originalUrl)
-        : getOptimizedImageUrl(originalUrl, { quality: 'auto', format: 'auto' });
+        ? getPlayableVideoUrl(originalUrl, format)
+        : getOptimizedImageUrl(originalUrl, { width: 1080, quality: 'auto', format: 'auto' });
       const thumbnailUrl = isVideo
         ? getVideoPosterUrl(originalUrl, { width: 720 })
         : getOptimizedImageUrl(originalUrl, { width: 600, height: 600, crop: 'fill', quality: 'auto' });

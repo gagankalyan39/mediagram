@@ -111,6 +111,14 @@ export default function HomePage() {
     );
   };
 
+  const handlePostDeleted = (postId: string) => {
+    setPosts(prev => prev.filter(p => p.id !== postId));
+  };
+
+  const handlePostEdited = (postId: string, caption: string) => {
+    setPosts(prev => prev.map(p => p.id === postId ? { ...p, caption } : p));
+  };
+
   // Sort posts depending on feedMode (memoized)
   const displayedPosts = React.useMemo(() => {
     if (feedMode === 'latest') {
@@ -246,6 +254,8 @@ export default function HomePage() {
                 onToggleLike={handleToggleLike}
                 onToggleBookmark={handleToggleBookmark}
                 onAddComment={handleAddComment}
+                onPostDeleted={handlePostDeleted}
+                onPostEdited={handlePostEdited}
               />
             ))}
           </div>

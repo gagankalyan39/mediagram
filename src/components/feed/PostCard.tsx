@@ -12,12 +12,15 @@ import {
   ChevronLeft,
   ChevronRight,
   MoreHorizontal,
-  Send,
   Sparkles,
   Volume2,
   VolumeX,
   Play,
-  Film
+  Film,
+  Pencil,
+  Trash2,
+  X,
+  Check,
 } from 'lucide-react';
 import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
@@ -30,6 +33,8 @@ interface PostCardProps {
   onToggleLike: (postId: string) => void;
   onToggleBookmark: (postId: string) => void;
   onAddComment: (postId: string, content: string) => void;
+  onPostDeleted?: (postId: string) => void;
+  onPostEdited?: (postId: string, caption: string) => void;
 }
 
 export function PostCard({
@@ -38,23 +43,30 @@ export function PostCard({
   onToggleLike,
   onToggleBookmark,
   onAddComment,
+  onPostDeleted,
+  onPostEdited,
 }: PostCardProps) {
   const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
   const [showHeartPop, setShowHeartPop] = useState(false);
   const [commentText, setCommentText] = useState('');
   const [showAllComments, setShowAllComments] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editCaption, setEditCaption] = useState(post.caption);
 
   // Home feed video auto-play & unmuted playback with single-active video coordination
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [isMuted, setIsMuted] = useState(false); // Unmuted by default per user request
+  const [isMuted, setIsMuted] = useState(true); // Start muted for autoplay compatibility
   const [isInView, setIsInView] = useState(false);
 
   // Dynamic Follow state synced with platform store
   const [isFollowing, setIsFollowing] = useState<boolean>(() =>
     typeof store.isFollowing === 'function' ? store.isFollowing(post.user.id) : false
   );
+
+  const isOwnPost = post.userId === currentUser.id;
 
   useEffect(() => {
     const handleStoreUpdate = () => {
@@ -74,9 +86,10 @@ export function PostCard({
     }
   };
 
-  // Coordinated double-tap detection: ensures double tap LIKES and NEVER toggles play/pause
-  const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // Touch tracking — use touchstart for more accurate timing on mobile
+  const touchStartTimeRef = useRef<number>(0);
   const lastTapTimeRef = useRef<number>(0);
+  const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const mediaList = post.media || [];
   const activeMedia = mediaList[currentMediaIndex];
@@ -101,7 +114,7 @@ export function PostCard({
       playPromise
         .then(() => setIsPlaying(true))
         .catch(() => {
-          // If browser restricts unmuted autoplay before any gesture, play muted temporarily
+          // Fallback: play muted (browsers require gesture for unmuted autoplay)
           video.muted = true;
           video.play().then(() => setIsPlaying(true)).catch(() => {});
         });
@@ -115,7 +128,7 @@ export function PostCard({
     setIsPlaying(false);
   };
 
-  // Listen for other videos playing so ONLY the focused video plays and others pause
+  // Listen for other videos playing so ONLY the focused video plays
   useEffect(() => {
     const onActiveVideo = (e: Event) => {
       const customEvent = e as CustomEvent<{ postId: string }>;
@@ -127,14 +140,11 @@ export function PostCard({
         }
       }
     };
-
     window.addEventListener('beesocial:active_video', onActiveVideo);
-    return () => {
-      window.removeEventListener('beesocial:active_video', onActiveVideo);
-    };
+    return () => window.removeEventListener('beesocial:active_video', onActiveVideo);
   }, [post.id]);
 
-  // On page reload, do NOT auto-play. Only start when user presses play or scrolls into primary focus after play is initiated.
+  // IntersectionObserver: auto-play when scrolled into view, pause when scrolled away
   useEffect(() => {
     const video = videoRef.current;
     const container = containerRef.current;
@@ -147,43 +157,20 @@ export function PostCard({
           setIsInView(entry.isIntersecting);
 
           if (isPrimaryVisible) {
-            // When user is actively watching feed videos, automatically switch playback to the centered video
             if (typeof window !== 'undefined' && (window as any).__beesocialFeedVideoActive) {
-              if (video && video.paused) {
-                startPlaying();
-              }
+              if (video && video.paused) startPlaying();
             }
           } else {
-            // When scrolled away from view, PAUSE THIS VIDEO so only the video currently in view plays!
-            if (video && !video.paused) {
-              pauseVideo();
-            }
+            if (video && !video.paused) pauseVideo();
           }
         });
       },
-      {
-        threshold: [0.1, 0.65],
-      }
+      { threshold: [0.1, 0.65] }
     );
 
     observer.observe(container);
     return () => observer.disconnect();
   }, [activeMedia, post.id, isMuted]);
-
-  const togglePlayPause = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    const video = videoRef.current;
-    if (!video) return;
-
-    if (video.paused) {
-      startPlaying();
-    } else {
-      pauseVideo();
-      if (typeof window !== 'undefined') {
-        (window as any).__beesocialFeedVideoActive = false;
-      }
-    }
-  };
 
   const toggleMute = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -193,6 +180,10 @@ export function PostCard({
     if (video) {
       video.muted = nextMuted;
       video.volume = nextMuted ? 0 : 1.0;
+      // If video wasn't playing and user unmutes, start playing
+      if (video.paused && !nextMuted) {
+        startPlaying();
+      }
     }
   };
 
@@ -204,13 +195,25 @@ export function PostCard({
     setTimeout(() => setShowHeartPop(false), 800);
   };
 
-  const handleMediaClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    const now = Date.now();
-    const timeDiff = now - lastTapTimeRef.current;
+  // --- Mobile-safe touch handling ---
+  // We track touchstart time so that we can distinguish:
+  //   single tap  → toggle play/pause (video) or open lightbox (image)
+  //   double tap  → like (within 300ms of previous tap)
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartTimeRef.current = Date.now();
+  };
 
-    if (timeDiff > 0 && timeDiff < 320) {
-      // Double click / tap detected!
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    const now = Date.now();
+    // Only treat as tap if the finger lifted quickly (< 200ms hold)
+    const holdDuration = now - touchStartTimeRef.current;
+    if (holdDuration > 200) return; // Long-press, ignore
+
+    const timeSinceLastTap = now - lastTapTimeRef.current;
+
+    if (timeSinceLastTap > 0 && timeSinceLastTap < 300) {
+      // Double-tap detected
+      e.preventDefault(); // prevent synthesized click
       if (clickTimeoutRef.current) {
         clearTimeout(clickTimeoutRef.current);
         clickTimeoutRef.current = null;
@@ -222,7 +225,7 @@ export function PostCard({
 
     lastTapTimeRef.current = now;
 
-    // Single click: if video, schedule play/pause toggle after grace period
+    // Schedule single-tap action
     if (activeMedia?.resourceType === 'video') {
       clickTimeoutRef.current = setTimeout(() => {
         const video = videoRef.current;
@@ -236,15 +239,25 @@ export function PostCard({
           }
         }
         clickTimeoutRef.current = null;
-      }, 260);
+      }, 310); // > double-tap window so it won't fire on double-tap
     }
   };
 
-  const handleTouchEnd = (e: React.TouchEvent) => {
+  // Desktop click handler (for mouse)
+  const handleMediaClick = (e: React.MouseEvent) => {
+    // On touch devices, touchend handles it; skip synthesized clicks
+    if (e.nativeEvent instanceof MouseEvent && (e.nativeEvent as any).sourceCapabilities?.firesTouchEvents === false) {
+      // actual mouse click on non-touch device
+    } else if (typeof TouchEvent !== 'undefined') {
+      // On touch devices the synthesized click fires after touchend, skip it
+      return;
+    }
+
+    e.stopPropagation();
     const now = Date.now();
     const timeDiff = now - lastTapTimeRef.current;
-    if (timeDiff > 0 && timeDiff < 320) {
-      e.preventDefault();
+
+    if (timeDiff > 0 && timeDiff < 300) {
       if (clickTimeoutRef.current) {
         clearTimeout(clickTimeoutRef.current);
         clickTimeoutRef.current = null;
@@ -253,7 +266,24 @@ export function PostCard({
       handleDoubleTap();
       return;
     }
+
     lastTapTimeRef.current = now;
+
+    if (activeMedia?.resourceType === 'video') {
+      clickTimeoutRef.current = setTimeout(() => {
+        const video = videoRef.current;
+        if (!video) return;
+        if (video.paused) {
+          startPlaying();
+        } else {
+          pauseVideo();
+          if (typeof window !== 'undefined') {
+            (window as any).__beesocialFeedVideoActive = false;
+          }
+        }
+        clickTimeoutRef.current = null;
+      }, 310);
+    }
   };
 
   const handleCommentSubmit = (e: React.FormEvent) => {
@@ -264,8 +294,33 @@ export function PostCard({
     setShowAllComments(true);
   };
 
+  const handleDeletePost = () => {
+    if (!confirm('Delete this post? This cannot be undone.')) return;
+    try {
+      store.deletePost(post.id);
+      onPostDeleted?.(post.id);
+      window.dispatchEvent(new CustomEvent('beesocial:store_updated'));
+    } catch (err: any) {
+      alert(err.message || 'Could not delete post.');
+    }
+    setShowMenu(false);
+  };
+
+  const handleSaveEdit = () => {
+    if (!editCaption.trim()) return;
+    try {
+      store.updatePost(post.id, { caption: editCaption.trim() });
+      onPostEdited?.(post.id, editCaption.trim());
+      window.dispatchEvent(new CustomEvent('beesocial:store_updated'));
+    } catch (err: any) {
+      alert(err.message || 'Could not update post.');
+    }
+    setIsEditing(false);
+    setShowMenu(false);
+  };
+
   return (
-    <article className="glass-card overflow-hidden border border-white/10 mb-6">
+    <article id={`post-${post.id}`} className="glass-card overflow-hidden border border-white/10 mb-6 relative">
       {/* Post Header */}
       <div className="flex items-center justify-between p-3.5 border-b border-white/10">
         <div className="flex items-center gap-3">
@@ -308,11 +363,46 @@ export function PostCard({
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 relative">
           {activeMedia && <CloudinaryBadge media={activeMedia} />}
-          <button className="p-1 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-colors">
+          <button
+            className="p-1 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+            onClick={() => setShowMenu(!showMenu)}
+          >
             <MoreHorizontal className="w-4 h-4" />
           </button>
+
+          {/* Three-dot dropdown menu */}
+          {showMenu && (
+            <div className="absolute top-8 right-0 z-50 glass-card border border-white/15 rounded-xl py-1.5 min-w-[140px] shadow-2xl">
+              {isOwnPost && (
+                <>
+                  <button
+                    className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-white/80 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                    onClick={() => { setIsEditing(true); setEditCaption(post.caption); setShowMenu(false); }}
+                  >
+                    <Pencil className="w-3.5 h-3.5 text-amber-400" />
+                    Edit Caption
+                  </button>
+                  <button
+                    className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                    onClick={handleDeletePost}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Delete Post
+                  </button>
+                  <div className="border-t border-white/10 my-1" />
+                </>
+              )}
+              <button
+                className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-white/60 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                onClick={() => setShowMenu(false)}
+              >
+                <X className="w-3.5 h-3.5" />
+                Close
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -335,11 +425,40 @@ export function PostCard({
         </div>
       )}
 
+      {/* Inline Edit Caption */}
+      {isEditing && (
+        <div className="px-4 py-3 border-b border-amber-400/20 bg-amber-400/5">
+          <p className="text-[10px] text-amber-300 font-bold mb-1.5">EDITING CAPTION</p>
+          <textarea
+            className="w-full bg-black/30 border border-white/15 rounded-xl p-2.5 text-xs text-white placeholder:text-white/30 focus:outline-none focus:border-amber-400/60 resize-none"
+            rows={3}
+            value={editCaption}
+            onChange={(e) => setEditCaption(e.target.value)}
+            autoFocus
+          />
+          <div className="flex gap-2 mt-2">
+            <button
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-400 text-black text-[11px] font-bold hover:bg-amber-300 transition-colors cursor-pointer"
+              onClick={handleSaveEdit}
+            >
+              <Check className="w-3 h-3" /> Save
+            </button>
+            <button
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 text-white/80 text-[11px] font-bold hover:bg-white/20 transition-colors cursor-pointer"
+              onClick={() => setIsEditing(false)}
+            >
+              <X className="w-3 h-3" /> Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Media Carousel / Single Asset */}
       <div
         ref={containerRef}
         className="relative w-full aspect-[4/5] sm:aspect-square bg-black/60 overflow-hidden select-none cursor-pointer flex items-center justify-center group"
         onClick={handleMediaClick}
+        onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
       >
         {activeMedia ? (
@@ -378,16 +497,14 @@ export function PostCard({
                 ) : (
                   <>
                     <VolumeX className="w-4 h-4 text-rose-300" />
-                    <span className="text-[10px] font-bold text-rose-200">Muted</span>
+                    <span className="text-[10px] font-bold text-rose-200">Tap to unmute</span>
                   </>
                 )}
               </button>
 
               {/* Play / Pause Indicator Overlay */}
               {!isPlaying && (
-                <div
-                  className="absolute inset-0 flex items-center justify-center bg-black/30 backdrop-blur-[1px] pointer-events-none"
-                >
+                <div className="absolute inset-0 flex items-center justify-center bg-black/30 backdrop-blur-[1px] pointer-events-none">
                   <div
                     onClick={(e) => {
                       e.stopPropagation();
@@ -419,53 +536,47 @@ export function PostCard({
           <div className="text-white/40 text-sm">Media unavailable</div>
         )}
 
-        {/* Double-tap Heart Animation */}
+        {/* Heart pop animation overlay */}
         {showHeartPop && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
-            <Heart className="w-24 h-24 text-rose-500 fill-rose-500 animate-heart-pop drop-shadow-2xl" />
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-30">
+            <div className="animate-ping w-20 h-20 flex items-center justify-center">
+              <span className="text-5xl drop-shadow-2xl" aria-hidden>❤️</span>
+            </div>
           </div>
         )}
 
-        {/* Carousel Navigation Arrows */}
-        {mediaList.length > 1 && (
-          <>
-            {currentMediaIndex > 0 && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setCurrentMediaIndex((prev) => prev - 1);
-                }}
-                className="absolute left-2.5 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-black/50 text-white/80 hover:text-white hover:bg-black/70 backdrop-blur-sm transition-all"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-            )}
-            {currentMediaIndex < mediaList.length - 1 && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setCurrentMediaIndex((prev) => prev + 1);
-                }}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-black/50 text-white/80 hover:text-white hover:bg-black/70 backdrop-blur-sm transition-all"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            )}
+        {/* Carousel: Previous */}
+        {mediaList.length > 1 && currentMediaIndex > 0 && (
+          <button
+            onClick={(e) => { e.stopPropagation(); setCurrentMediaIndex((i) => i - 1); }}
+            className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/70 backdrop-blur-md border border-white/20 flex items-center justify-center text-white hover:bg-black/90 transition-all z-10 shadow-xl"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+        )}
 
-            {/* Carousel Dots */}
-            <div className="absolute bottom-3 inset-x-0 flex items-center justify-center gap-1.5 z-10 pointer-events-none">
-              {mediaList.map((_, idx) => (
-                <div
-                  key={idx}
-                  className={`w-1.5 h-1.5 rounded-full transition-all duration-200 ${
-                    idx === currentMediaIndex
-                      ? 'w-4 bg-amber-400'
-                      : 'bg-white/40'
-                  }`}
-                />
-              ))}
-            </div>
-          </>
+        {/* Carousel: Next */}
+        {mediaList.length > 1 && currentMediaIndex < mediaList.length - 1 && (
+          <button
+            onClick={(e) => { e.stopPropagation(); setCurrentMediaIndex((i) => i + 1); }}
+            className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/70 backdrop-blur-md border border-white/20 flex items-center justify-center text-white hover:bg-black/90 transition-all z-10 shadow-xl"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        )}
+
+        {/* Carousel Dots */}
+        {mediaList.length > 1 && (
+          <div className="absolute bottom-3 inset-x-0 flex items-center justify-center gap-1.5 z-10 pointer-events-none">
+            {mediaList.map((_, idx) => (
+              <div
+                key={idx}
+                className={`h-1.5 rounded-full transition-all duration-200 ${
+                  idx === currentMediaIndex ? 'w-4 bg-amber-400' : 'w-1.5 bg-white/40'
+                }`}
+              />
+            ))}
+          </div>
         )}
       </div>
 
@@ -477,7 +588,7 @@ export function PostCard({
             <button
               type="button"
               onClick={() => onToggleLike(post.id)}
-              className="p-2 -m-2 group cursor-pointer transition-transform active:scale-125 touch-manipulation select-none flex items-center justify-center min-w-[40px] min-h-[40px]"
+              className="p-2 -m-2 group cursor-pointer transition-transform active:scale-125 touch-manipulation select-none flex items-center justify-center min-w-[44px] min-h-[44px]"
             >
               <Heart
                 className={`w-6 h-6 transition-colors ${
@@ -492,7 +603,7 @@ export function PostCard({
             <button
               type="button"
               onClick={() => setShowAllComments(!showAllComments)}
-              className="p-2 -m-2 text-white/80 hover:text-white transition-colors cursor-pointer touch-manipulation select-none flex items-center justify-center min-w-[40px] min-h-[40px]"
+              className="p-2 -m-2 text-white/80 hover:text-white transition-colors cursor-pointer touch-manipulation select-none flex items-center justify-center min-w-[44px] min-h-[44px]"
             >
               <MessageCircle className="w-6 h-6" />
             </button>
@@ -505,7 +616,7 @@ export function PostCard({
                   navigator.share({ title: 'MediaGram Post', url: window.location.href });
                 }
               }}
-              className="p-2 -m-2 text-white/80 hover:text-white transition-colors cursor-pointer touch-manipulation select-none flex items-center justify-center min-w-[40px] min-h-[40px]"
+              className="p-2 -m-2 text-white/80 hover:text-white transition-colors cursor-pointer touch-manipulation select-none flex items-center justify-center min-w-[44px] min-h-[44px]"
             >
               <Share2 className="w-6 h-6" />
             </button>
@@ -515,7 +626,7 @@ export function PostCard({
           <button
             type="button"
             onClick={() => onToggleBookmark(post.id)}
-            className="p-2 -m-2 text-white/80 hover:text-amber-400 transition-colors cursor-pointer touch-manipulation select-none flex items-center justify-center min-w-[40px] min-h-[40px]"
+            className="p-2 -m-2 text-white/80 hover:text-amber-400 transition-colors cursor-pointer touch-manipulation select-none flex items-center justify-center min-w-[44px] min-h-[44px]"
           >
             <Bookmark
               className={`w-6 h-6 ${
