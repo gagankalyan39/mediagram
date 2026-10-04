@@ -33,4 +33,12 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
+Before deploying, add these environment variables in Vercel under **Project Settings → Environment Variables**:
+
+- `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME`
+- `CLOUDINARY_API_KEY`
+- `CLOUDINARY_API_SECRET`
+
+Set them for each environment you use, then redeploy so the public cloud name is included in the client build. Keep the API key and secret private; do not commit them. The project uses the repository root as its Vercel Root Directory and the default Next.js build command (`npm run build`).
+
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.

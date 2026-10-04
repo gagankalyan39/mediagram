@@ -82,6 +82,12 @@ export async function POST(request: NextRequest) {
       });
     } catch (cldError: any) {
       console.warn('Cloudinary upload stream notice, utilizing saved local media:', cldError?.message || cldError);
+      if (process.env.VERCEL) {
+        return NextResponse.json(
+          { error: 'Cloudinary upload failed; retrying through signed direct upload.' },
+          { status: 502 }
+        );
+      }
     }
 
     if (uploadResult && uploadResult.secure_url) {

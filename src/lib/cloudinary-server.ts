@@ -3,11 +3,24 @@ import { CLOUD_NAME, getFolderPath, MediaFolderType } from './cloudinary';
 
 // Configure Cloudinary server-side instance
 cloudinary.config({
-  cloud_name: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || 'rwcuzbxd',
-  api_key: process.env.CLOUDINARY_API_KEY || '945753893851776',
-  api_secret: process.env.CLOUDINARY_API_SECRET || 'ukRzmGJZq5AGP4b4u7xUKkPITUc',
+  cloud_name: CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
   secure: true,
 });
+
+function getCloudinaryCredentials() {
+  const apiKey = process.env.CLOUDINARY_API_KEY;
+  const apiSecret = process.env.CLOUDINARY_API_SECRET;
+
+  if (!CLOUD_NAME || !apiKey || !apiSecret) {
+    throw new Error(
+      'Cloudinary is not configured. Set NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET.'
+    );
+  }
+
+  return { apiKey, apiSecret };
+}
 
 /**
  * Generate signed upload parameters for secure frontend direct upload
@@ -36,8 +49,7 @@ export function generateUploadSignature(options: {
     paramsToSign.tags = options.tags.join(',');
   }
 
-  const apiSecret = process.env.CLOUDINARY_API_SECRET || 'ukRzmGJZq5AGP4b4u7xUKkPITUc';
-  const apiKey = process.env.CLOUDINARY_API_KEY || '945753893851776';
+  const { apiKey, apiSecret } = getCloudinaryCredentials();
 
   const signature = cloudinary.utils.api_sign_request(paramsToSign, apiSecret);
 
