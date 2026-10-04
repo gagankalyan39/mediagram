@@ -86,7 +86,19 @@ export function getVideoPosterUrl(publicIdOrUrl: string, options?: {
   const height = options?.height ? `h_${options.height},` : '';
   const so = options?.offsetSeconds !== undefined ? `so_${options.offsetSeconds},` : 'so_1,';
 
-  // If already a Cloudinary delivery URL
+  // If already a Cloudinary delivery URL - strip existing transforms first to avoid double-injection
+  if (publicIdOrUrl.includes('res.cloudinary.com') && publicIdOrUrl.includes('/video/upload/')) {
+    // Remove any existing transform segment (everything between /video/upload/ and the public_id path)
+    const cleanUrl = publicIdOrUrl.replace(
+      /\/video\/upload\/([^/]+\/)*(?=[a-z0-9_-]+(?:\/[a-z0-9_-]+)*\.)/,
+      '/video/upload/'
+    );
+    return cleanUrl
+      .replace('/video/upload/', `/video/upload/${width}${height}${so}c_fill,f_jpg,q_auto/`)
+      .replace(/\.mp4(\?.*)?$/, '.jpg');
+  }
+
+  // Plain /video/upload/ URL (no full domain)
   if (publicIdOrUrl.includes('/video/upload/')) {
     return publicIdOrUrl
       .replace('/video/upload/', `/video/upload/${width}${height}${so}c_fill,f_jpg,q_auto/`)

@@ -14,11 +14,14 @@ export interface PresetVideoClip {
   duration: number;
 }
 
+// Cloudinary base for all reels - videos uploaded to Cloudinary for Vercel compatibility
+const CDN = 'https://res.cloudinary.com/rwcuzbxd/video/upload/q_auto,vc_auto';
+
 export const PRESET_VIDEO_CLIPS: PresetVideoClip[] = [
   {
     id: 'vid_01',
     filename: 'reel_01.mp4',
-    videoUrl: '/videos/reel_01.mp4',
+    videoUrl: `${CDN}/mediagram/reels/reel_01.mp4`,
     title: 'Midnight Tokyo Hyperlapse Chase',
     caption: 'Tokyo rain hyperlapse through Shibuya & Shinjuku at 2 AM 🌧️ Speed, reflections, and cyberpunk atmosphere. Shot on 35mm anamorphic.',
     tags: ['tokyo', 'cyberpunk', 'hyperlapse', 'cinematics', 'nightlife'],
@@ -33,7 +36,7 @@ export const PRESET_VIDEO_CLIPS: PresetVideoClip[] = [
   {
     id: 'vid_02',
     filename: 'reel_02.mp4',
-    videoUrl: '/videos/reel_02.mp4',
+    videoUrl: `${CDN}/mediagram/reels/reel_02.mp4`,
     title: 'Bumblebee Botanical Illustration',
     caption: 'Macro bumblebee and honeycomb painting process 🐝🌼 Bringing warmth and tactile texture with gold leaf details.',
     tags: ['art', 'bumblebee', 'illustration', 'painting', 'botanical'],
@@ -48,7 +51,7 @@ export const PRESET_VIDEO_CLIPS: PresetVideoClip[] = [
   {
     id: 'vid_03',
     filename: 'reel_03.mp4',
-    videoUrl: '/videos/reel_03.mp4',
+    videoUrl: `${CDN}/mediagram/reels/reel_03.mp4`,
     title: 'Coconut Tropical Summer Mood',
     caption: 'Sunny island breeze with fresh coconuts 🥥🌴 Sometimes you just need tropical sunshine and gentle waves.',
     tags: ['coconut', 'summer', 'tropical', 'beach', 'vacation'],
@@ -63,9 +66,9 @@ export const PRESET_VIDEO_CLIPS: PresetVideoClip[] = [
   {
     id: 'vid_04',
     filename: 'reel_04.mp4',
-    videoUrl: '/videos/reel_04.mp4',
+    videoUrl: `${CDN}/mediagram/reels/reel_04.mp4`,
     title: 'Dancing Parrots Rhythm Session',
-    caption: 'When the beat drops and the whole flock can’t resist dancing! 🦜✨ Synchronized feather groove.',
+    caption: "When the beat drops and the whole flock can't resist dancing! 🦜✨ Synchronized feather groove.",
     tags: ['dance', 'birds', 'parrots', 'cute', 'viral'],
     suggestedLocation: 'Botanical Sanctuary, Costa Rica',
     audioTrackTitle: 'Samba Feathers · Tropical Rhythm Mix',
@@ -78,7 +81,7 @@ export const PRESET_VIDEO_CLIPS: PresetVideoClip[] = [
   {
     id: 'vid_05',
     filename: 'reel_05.mp4',
-    videoUrl: '/videos/reel_05.mp4',
+    videoUrl: `${CDN}/mediagram/reels/reel_05.mp4`,
     title: 'Honey Bunny Playful Bounce',
     caption: 'Pure weekend joy! Jumping around and spreading fluffy smiles 🐰🤪 Sound up for happy vibes!',
     tags: ['bunny', 'cute', 'fluffy', 'funny', 'pets'],
@@ -93,7 +96,7 @@ export const PRESET_VIDEO_CLIPS: PresetVideoClip[] = [
   {
     id: 'vid_06',
     filename: 'reel_06.mp4',
-    videoUrl: '/videos/reel_06.mp4',
+    videoUrl: `${CDN}/mediagram/reels/reel_06.mp4`,
     title: 'Ivy Dancing For You',
     caption: 'Ivy taking the stage with her special choreo! 🐰♥️ The cutest routine to brighten your feed today.',
     tags: ['danceai', 'bunnylove', 'cuteanimals', 'animation', 'choreography'],
@@ -108,7 +111,7 @@ export const PRESET_VIDEO_CLIPS: PresetVideoClip[] = [
   {
     id: 'vid_07',
     filename: 'reel_07.mp4',
-    videoUrl: '/videos/reel_07.mp4',
+    videoUrl: `${CDN}/mediagram/reels/reel_07.mp4`,
     title: 'Jaane Meriye Anime Illustration',
     caption: 'Soft golden hour 2D anime illustration process 🌸🤌 Digital line work and dreamy pastel blending.',
     tags: ['digitalart', 'anime', 'illustration', 'aesthetic', 'procreate'],
@@ -123,7 +126,7 @@ export const PRESET_VIDEO_CLIPS: PresetVideoClip[] = [
   {
     id: 'vid_08',
     filename: 'reel_08.mp4',
-    videoUrl: '/videos/reel_08.mp4',
+    videoUrl: `${CDN}/mediagram/reels/reel_08.mp4`,
     title: 'Kittens Dance Show Premiere',
     caption: 'The tiny paws performance everyone has been waiting for! 🐱💃 Who taught them these moves?!',
     tags: ['cat', 'kitten', 'catsofinstagram', 'dance', 'wholesome'],
@@ -138,7 +141,7 @@ export const PRESET_VIDEO_CLIPS: PresetVideoClip[] = [
   {
     id: 'vid_09',
     filename: 'reel_09.mp4',
-    videoUrl: '/videos/reel_09.mp4',
+    videoUrl: `${CDN}/mediagram/reels/reel_09.mp4`,
     title: 'Kittens Dance Encore',
     caption: 'Back with the full choreography! Synchronized purrs and tiny head bobs 🐾🎵',
     tags: ['cats', 'kittens', 'funnycats', 'pets', 'dance'],
@@ -153,7 +156,7 @@ export const PRESET_VIDEO_CLIPS: PresetVideoClip[] = [
   {
     id: 'vid_10',
     filename: 'reel_10.mp4',
-    videoUrl: '/videos/reel_10.mp4',
+    videoUrl: `${CDN}/mediagram/reels/reel_10.mp4`,
     title: 'Funny Kittens Dance Takeover',
     caption: 'When mom leaves the room and the kittens turn into party legends 🐱🕺',
     tags: ['catlover', 'kitty', 'funny', 'reels', 'pets'],
@@ -168,7 +171,7 @@ export const PRESET_VIDEO_CLIPS: PresetVideoClip[] = [
   {
     id: 'vid_11',
     filename: 'reel_11.mp4',
-    videoUrl: '/videos/reel_11.mp4',
+    videoUrl: `${CDN}/mediagram/reels/reel_11.mp4`,
     title: 'Lonely Tere Bin Sketch Journal',
     caption: 'Late night sketching emotions with loose ink and watercolor washes ✍️🎨 Drawing what cannot be said.',
     tags: ['doodle', 'sketch', 'drawing', 'artist', 'memes'],
@@ -183,7 +186,7 @@ export const PRESET_VIDEO_CLIPS: PresetVideoClip[] = [
   {
     id: 'vid_12',
     filename: 'reel_12.mp4',
-    videoUrl: '/videos/reel_12.mp4',
+    videoUrl: `${CDN}/mediagram/reels/reel_12.mp4`,
     title: 'Love Me Not Typography Motion',
     caption: 'Wiggly paint digital brush lettering 🚫 Dynamic typography animated frame by frame in 4K.',
     tags: ['typography', 'digitalart', 'lettering', 'animation', 'design'],
@@ -198,7 +201,7 @@ export const PRESET_VIDEO_CLIPS: PresetVideoClip[] = [
   {
     id: 'vid_13',
     filename: 'reel_13.mp4',
-    videoUrl: '/videos/reel_13.mp4',
+    videoUrl: `${CDN}/mediagram/reels/reel_13.mp4`,
     title: 'Sachme Ek Bhi Nahi Comic',
     caption: 'That ultra relatable moment when expectations meet brutal hilarious reality 😂 Tag that one friend!',
     tags: ['funny', 'relatable', 'comedy', 'humor', 'memes'],
@@ -213,7 +216,7 @@ export const PRESET_VIDEO_CLIPS: PresetVideoClip[] = [
   {
     id: 'vid_14',
     filename: 'reel_14.mp4',
-    videoUrl: '/videos/reel_14.mp4',
+    videoUrl: `${CDN}/mediagram/reels/reel_14.mp4`,
     title: 'Spontaneous Coffee Doodles',
     caption: 'Drawing cute encounters in crowded cafes ☕💭 Secret sketches that capture warm human connection.',
     tags: ['doodlesofinstagram', 'doodle', 'coffee', 'art', 'cafe'],
@@ -228,7 +231,7 @@ export const PRESET_VIDEO_CLIPS: PresetVideoClip[] = [
   {
     id: 'vid_15',
     filename: 'reel_15.mp4',
-    videoUrl: '/videos/reel_15.mp4',
+    videoUrl: `${CDN}/mediagram/reels/reel_15.mp4`,
     title: 'Family Humor & Relatable Drama',
     caption: 'Comedic timing at family gatherings that hits way too close to home 🙏🏻😂 Send this to your family group!',
     tags: ['instagramreels', 'instadaily', 'funny', 'reels', 'humor'],
@@ -243,7 +246,7 @@ export const PRESET_VIDEO_CLIPS: PresetVideoClip[] = [
   {
     id: 'vid_16',
     filename: 'reel_16.mp4',
-    videoUrl: '/videos/reel_16.mp4',
+    videoUrl: `${CDN}/mediagram/reels/reel_16.mp4`,
     title: 'Kitten Crew Backup Dancers',
     caption: 'The squad has fully assembled! Backing up the main star with serious rhythm 🐾✨',
     tags: ['cats', 'funnycats', 'dance', 'cats_of_instagram', 'viral'],
@@ -258,7 +261,7 @@ export const PRESET_VIDEO_CLIPS: PresetVideoClip[] = [
   {
     id: 'vid_17',
     filename: 'reel_17.mp4',
-    videoUrl: '/videos/reel_17.mp4',
+    videoUrl: `${CDN}/mediagram/reels/reel_17.mp4`,
     title: 'Kittens Group Formation',
     caption: 'Practice makes purrfect! Watch the center kitten nail the spin at second 0:08 🐱💃',
     tags: ['kitten', 'dance', 'catsofinstagram', 'cute', 'pets'],
@@ -273,7 +276,7 @@ export const PRESET_VIDEO_CLIPS: PresetVideoClip[] = [
   {
     id: 'vid_18',
     filename: 'reel_18.mp4',
-    videoUrl: '/videos/reel_18.mp4',
+    videoUrl: `${CDN}/mediagram/reels/reel_18.mp4`,
     title: 'Pug Puppies Wedding Walk Date',
     caption: 'These pug puppies just had the sweetest little wedding walk! Tiny bowties and happy tail wiggles 🐶💍',
     tags: ['doglover', 'pugs', 'dogs', 'trending', 'cute'],
@@ -288,7 +291,7 @@ export const PRESET_VIDEO_CLIPS: PresetVideoClip[] = [
   {
     id: 'vid_19',
     filename: 'reel_19.mp4',
-    videoUrl: '/videos/reel_19.mp4',
+    videoUrl: `${CDN}/mediagram/reels/reel_19.mp4`,
     title: 'Tum Ha Tum Doggy Mischief',
     caption: 'That face your pup makes right after stealing your favorite sock from the laundry pile 🫵🏻🐶',
     tags: ['dogs', 'puppy', 'dogsofinstagram', 'funny', 'cute'],
@@ -303,7 +306,7 @@ export const PRESET_VIDEO_CLIPS: PresetVideoClip[] = [
   {
     id: 'vid_20',
     filename: 'reel_20.mp4',
-    videoUrl: '/videos/reel_20.mp4',
+    videoUrl: `${CDN}/mediagram/reels/reel_20.mp4`,
     title: 'Playful Pup Loyalty',
     caption: 'The definition of unconditional love: always waiting by the door with a wagging tail 🐾♥️',
     tags: ['dog', 'bestfriend', 'pets', 'wholesome', 'puppies'],
@@ -318,7 +321,7 @@ export const PRESET_VIDEO_CLIPS: PresetVideoClip[] = [
   {
     id: 'vid_21',
     filename: 'reel_21.mp4',
-    videoUrl: '/videos/reel_21.mp4',
+    videoUrl: `${CDN}/mediagram/reels/reel_21.mp4`,
     title: 'Slow Motion Golden Hour Capture',
     caption: 'Cinematic sunlight cascading through glass and dust motes. High bitrate 60fps slow motion test 🌅📹',
     tags: ['cinematography', 'goldenhour', 'filmmaking', 'lensflare', '4k'],
@@ -333,7 +336,7 @@ export const PRESET_VIDEO_CLIPS: PresetVideoClip[] = [
   {
     id: 'vid_22',
     filename: 'reel_22.mp4',
-    videoUrl: '/videos/reel_22.mp4',
+    videoUrl: `${CDN}/mediagram/reels/reel_22.mp4`,
     title: 'Kittens Alone in the Room',
     caption: 'Camera footage revealed the secret nightlife of kittens when humans fall asleep! 🐱👀 Total energetic zoomies.',
     tags: ['kittens', 'cats', 'secretlife', 'funny', 'pets'],
@@ -348,7 +351,7 @@ export const PRESET_VIDEO_CLIPS: PresetVideoClip[] = [
   {
     id: 'vid_23',
     filename: 'reel_23.mp4',
-    videoUrl: '/videos/reel_23.mp4',
+    videoUrl: `${CDN}/mediagram/reels/reel_23.mp4`,
     title: 'Certified Foodie Dilemma',
     caption: 'When your heart says diet but your soul says pastry and gourmet pasta 🥐🍝 Every bite is pure happiness!',
     tags: ['foodie', 'delicious', 'foodstagram', 'comedy', 'yum'],
@@ -363,7 +366,7 @@ export const PRESET_VIDEO_CLIPS: PresetVideoClip[] = [
   {
     id: 'vid_24',
     filename: 'reel_24.mp4',
-    videoUrl: '/videos/reel_24.mp4',
+    videoUrl: `${CDN}/mediagram/reels/reel_24.mp4`,
     title: 'Holding In The Name Gossip',
     caption: 'Trying so hard not to spill the tea when someone asks about your weekend plans 👀😂 Peak drama expression.',
     tags: ['funnyreels', 'relatable', 'comedy', 'friends', 'viral'],
@@ -378,7 +381,7 @@ export const PRESET_VIDEO_CLIPS: PresetVideoClip[] = [
   {
     id: 'vid_25',
     filename: 'reel_25.mp4',
-    videoUrl: '/videos/reel_25.mp4',
+    videoUrl: `${CDN}/mediagram/reels/reel_25.mp4`,
     title: 'Darling Angel Baby Aesthetic',
     caption: 'Soft aesthetic memories captured on retro 16mm grain 😘 Warm sunlight, sweet melodies, and peaceful thoughts.',
     tags: ['aesthetic', 'reelsfeelit', 'vintage', 'love', 'mood'],
@@ -393,7 +396,7 @@ export const PRESET_VIDEO_CLIPS: PresetVideoClip[] = [
   {
     id: 'vid_26',
     filename: 'reel_26.mp4',
-    videoUrl: '/videos/reel_26.mp4',
+    videoUrl: `${CDN}/mediagram/reels/reel_26.mp4`,
     title: 'Morning Coffee Cartoon Routine',
     caption: 'The old coffee mug broke so the new warrior stepped up! 😂☕🍪 Relatable morning struggles animated.',
     tags: ['coffee', 'aicartoon', 'funny', 'morningroutine', 'animation'],
@@ -408,7 +411,7 @@ export const PRESET_VIDEO_CLIPS: PresetVideoClip[] = [
   {
     id: 'vid_27',
     filename: 'reel_27.mp4',
-    videoUrl: '/videos/reel_27.mp4',
+    videoUrl: `${CDN}/mediagram/reels/reel_27.mp4`,
     title: 'Pooh and Gini Puppy Drama',
     caption: 'He thought he was the neighborhood hero until the little dog taught him a lesson! 😂🐶 Pooh & Gini comedy.',
     tags: ['dogs', 'dogsofinstagram', 'funnyanimals', 'pets', 'comedy'],
@@ -423,7 +426,7 @@ export const PRESET_VIDEO_CLIPS: PresetVideoClip[] = [
   {
     id: 'vid_28',
     filename: 'reel_28.mp4',
-    videoUrl: '/videos/reel_28.mp4',
+    videoUrl: `${CDN}/mediagram/reels/reel_28.mp4`,
     title: 'Himouto Umaru-Chan Anime Vibe',
     caption: 'Cozy weekend mode activated: hoodie on, cola in hand, snacks ready 🍿🎮 Ultimate slice-of-life relaxation.',
     tags: ['anime', 'sliceoflife', 'cozy', 'otaku', 'weekend'],
@@ -438,7 +441,7 @@ export const PRESET_VIDEO_CLIPS: PresetVideoClip[] = [
   {
     id: 'vid_29',
     filename: 'reel_29.mp4',
-    videoUrl: '/videos/reel_29.mp4',
+    videoUrl: `${CDN}/mediagram/reels/reel_29.mp4`,
     title: 'Ghilli High-Energy Stadium Action',
     caption: 'Adrenaline pumping through the stadium! Unstoppable velocity and cinematic sports intensity 🎬🏟️',
     tags: ['sports', 'action', 'cinema', 'energy', 'hype'],
@@ -453,7 +456,7 @@ export const PRESET_VIDEO_CLIPS: PresetVideoClip[] = [
   {
     id: 'vid_30',
     filename: 'reel_30.mp4',
-    videoUrl: '/videos/reel_30.mp4',
+    videoUrl: `${CDN}/mediagram/reels/reel_30.mp4`,
     title: 'Rickshawala Street Dance Beat',
     caption: 'Vibrant local street rhythm with infectious foot-tapping beats! 🎵🛺 Celebrating festive joy and culture.',
     tags: ['dance', 'music', 'streetbeats', 'joy', 'celebration'],
@@ -468,7 +471,7 @@ export const PRESET_VIDEO_CLIPS: PresetVideoClip[] = [
   {
     id: 'vid_31',
     filename: 'reel_31.mp4',
-    videoUrl: '/videos/reel_31.mp4',
+    videoUrl: `${CDN}/mediagram/reels/reel_31.mp4`,
     title: 'Wild Outdoors Comic Encounter',
     caption: 'Nature is beautiful but sometimes it has the most comedic jump scares! 🐍😂😂 Sound reaction is legendary.',
     tags: ['outdoors', 'nature', 'funny', 'wildlife', 'reaction'],
@@ -483,7 +486,7 @@ export const PRESET_VIDEO_CLIPS: PresetVideoClip[] = [
   {
     id: 'vid_32',
     filename: 'reel_32.mp4',
-    videoUrl: '/videos/reel_32.mp4',
+    videoUrl: `${CDN}/mediagram/reels/reel_32.mp4`,
     title: 'Retro Synthwave Cat Dance',
     caption: 'Taking it back to 2020 with neon cyber cat choreo 🐱🕺 Synthwave grids, chrome gradients, and retro nostalgia.',
     tags: ['ai', 'cat', 'dance', 'synthwave', 'cyberpunk'],
@@ -498,7 +501,7 @@ export const PRESET_VIDEO_CLIPS: PresetVideoClip[] = [
   {
     id: 'vid_33',
     filename: 'reel_33.mp4',
-    videoUrl: '/videos/reel_33.mp4',
+    videoUrl: `${CDN}/mediagram/reels/reel_33.mp4`,
     title: 'POV: You Cannot Stop Dancing',
     caption: 'POV: That beat is just way too infectious and your feet move on their own! 🐰💃 Unstoppable bounce!',
     tags: ['dance', 'funny', 'bunnylife', 'viral', 'mood'],
