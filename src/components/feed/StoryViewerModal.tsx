@@ -2,9 +2,10 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Story } from '@/lib/types';
-import { X, ChevronLeft, ChevronRight, Heart, Send, Sparkles, Check } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, Heart, Send, Sparkles, Check, Volume2, VolumeX } from 'lucide-react';
 import { GlassAvatar } from '../glass/GlassAvatar';
 import { store } from '@/lib/store';
+import { videoCoordinator } from '@/lib/video-coordinator';
 
 interface StoryViewerModalProps {
   stories: Story[];
@@ -24,10 +25,21 @@ export function StoryViewerModal({
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [progress, setProgress] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
   const [replyText, setReplyText] = useState('');
   const [sentToast, setSentToast] = useState(false);
   const [likedHeart, setLikedHeart] = useState(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Pause background feed videos while story modal is open
+  useEffect(() => {
+    if (isOpen) {
+      videoCoordinator.setModalOpen(true);
+      return () => {
+        videoCoordinator.setModalOpen(false);
+      };
+    }
+  }, [isOpen]);
 
   const activeStory = stories[currentIndex];
 
@@ -161,9 +173,9 @@ export function StoryViewerModal({
           ))}
         </div>
 
-        {/* Story Author Header */}
-        <div className="absolute top-7 inset-x-4 z-30 flex items-center justify-between">
-          <div className="flex items-center gap-2.5 bg-black/30 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10">
+        {/* Story Author Header & Sound Toggle */}
+        <div className="absolute top-7 inset-x-4 z-30 flex items-center justify-between pointer-events-none">
+          <div className="flex items-center gap-2.5 bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 pointer-events-auto">
             <GlassAvatar
               src={activeStory.user.avatarUrl}
               name={activeStory.user.name}
@@ -175,6 +187,23 @@ export function StoryViewerModal({
             </span>
             <span className="text-[10px] text-white/60">Story</span>
           </div>
+
+          {activeStory.resourceType === 'video' && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsMuted((prev) => !prev);
+              }}
+              className="p-2 rounded-full bg-black/50 hover:bg-black/70 backdrop-blur-md border border-white/20 text-white pointer-events-auto transition-colors cursor-pointer"
+              title={isMuted ? 'Turn Sound ON' : 'Mute'}
+            >
+              {isMuted ? (
+                <VolumeX className="w-4 h-4 text-rose-300" />
+              ) : (
+                <Volume2 className="w-4 h-4 text-amber-400" />
+              )}
+            </button>
+          )}
         </div>
 
         {/* Story Media (Image or Video) with Animated Transition Key */}
@@ -186,7 +215,7 @@ export function StoryViewerModal({
             <video
               src={activeStory.mediaUrl}
               autoPlay
-              muted
+              muted={isMuted}
               playsInline
               loop
               className="w-full h-full object-cover transition-transform duration-500 ease-out"

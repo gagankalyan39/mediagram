@@ -26,6 +26,7 @@ import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
 import { getVideoPosterUrl } from '@/lib/cloudinary';
 import { store } from '@/lib/store';
+import { videoCoordinator } from '@/lib/video-coordinator';
 
 interface PostCardProps {
   post: Post;
@@ -54,12 +55,19 @@ export function PostCard({
   const [isEditing, setIsEditing] = useState(false);
   const [editCaption, setEditCaption] = useState(post.caption);
 
-  // Home feed video auto-play & unmuted playback with single-active video coordination
+  // Central Video Coordinator: strictly one video plays, unmuted when watched
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [isMuted, setIsMuted] = useState(true); // Start muted for autoplay compatibility
-  const [isInView, setIsInView] = useState(false);
+  const [isSoundOn, setIsSoundOn] = useState(() => videoCoordinator.isSoundOn());
+  const isManuallyPausedRef = useRef<boolean>(false);
+
+  // Sync sound preference across all posts
+  useEffect(() => {
+    return videoCoordinator.subscribe(() => {
+      setIsSoundOn(videoCoordinator.isSoundOn());
+    });
+  }, []);
 
   // Dynamic Follow state synced with platform store
   const [isFollowing, setIsFollowing] = useState<boolean>(() =>
@@ -94,94 +102,73 @@ export function PostCard({
   const mediaList = post.media || [];
   const activeMedia = mediaList[currentMediaIndex];
 
+  // Register with central video coordinator: strictly one video plays, unmuted when watched
+  useEffect(() => {
+    const video = videoRef.current;
+    const container = containerRef.current;
+    if (!video || !container || activeMedia?.resourceType !== 'video') return;
+
+    const unregister = videoCoordinator.register({
+      id: post.id,
+      element: container,
+      video: video,
+      onActivate: (unmuted) => {
+        setIsPlaying(true);
+        video.loop = true;
+        video.playsInline = true;
+        if (unmuted) {
+          video.muted = false;
+          video.volume = 1.0;
+        } else {
+          video.muted = true;
+        }
+        const playPromise = video.play();
+        if (playPromise !== undefined) {
+          playPromise.catch(() => {
+            // Browser policy blocked unmuted autoplay before first user gesture:
+            video.muted = true;
+            video.play().then(() => setIsPlaying(true)).catch(() => {});
+          });
+        }
+      },
+      onDeactivate: () => {
+        video.pause();
+        setIsPlaying(false);
+        video.muted = true;
+      },
+      isManuallyPaused: () => isManuallyPausedRef.current,
+      resetManualPause: () => {
+        isManuallyPausedRef.current = false;
+      },
+    });
+
+    return () => unregister();
+  }, [post.id, activeMedia?.resourceType, currentMediaIndex]);
+
   const startPlaying = () => {
     const video = videoRef.current;
     if (!video) return;
-
-    if (typeof window !== 'undefined') {
-      (window as any).__beesocialFeedVideoActive = true;
-      window.dispatchEvent(
-        new CustomEvent('beesocial:active_video', { detail: { postId: post.id } })
-      );
-    }
-
-    video.muted = isMuted;
-    video.volume = isMuted ? 0 : 1.0;
-    video.loop = true;
-
-    const playPromise = video.play();
-    if (playPromise !== undefined) {
-      playPromise
-        .then(() => setIsPlaying(true))
-        .catch(() => {
-          // Fallback: play muted (browsers require gesture for unmuted autoplay)
-          video.muted = true;
-          video.play().then(() => setIsPlaying(true)).catch(() => {});
-        });
-    }
+    isManuallyPausedRef.current = false;
+    videoCoordinator.setActiveManually(post.id);
+    setIsPlaying(true);
   };
 
   const pauseVideo = () => {
     const video = videoRef.current;
     if (!video) return;
+    isManuallyPausedRef.current = true;
     video.pause();
     setIsPlaying(false);
   };
 
-  // Listen for other videos playing so ONLY the focused video plays
-  useEffect(() => {
-    const onActiveVideo = (e: Event) => {
-      const customEvent = e as CustomEvent<{ postId: string }>;
-      if (customEvent.detail?.postId !== post.id) {
-        const video = videoRef.current;
-        if (video && !video.paused) {
-          video.pause();
-          setIsPlaying(false);
-        }
-      }
-    };
-    window.addEventListener('beesocial:active_video', onActiveVideo);
-    return () => window.removeEventListener('beesocial:active_video', onActiveVideo);
-  }, [post.id]);
-
-  // IntersectionObserver: auto-play when scrolled into view, pause when scrolled away
-  useEffect(() => {
-    const video = videoRef.current;
-    const container = containerRef.current;
-    if (!container || activeMedia?.resourceType !== 'video') return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          const isPrimaryVisible = entry.isIntersecting && entry.intersectionRatio >= 0.65;
-          setIsInView(entry.isIntersecting);
-
-          if (isPrimaryVisible) {
-            if (typeof window !== 'undefined' && (window as any).__beesocialFeedVideoActive) {
-              if (video && video.paused) startPlaying();
-            }
-          } else {
-            if (video && !video.paused) pauseVideo();
-          }
-        });
-      },
-      { threshold: [0.1, 0.65] }
-    );
-
-    observer.observe(container);
-    return () => observer.disconnect();
-  }, [activeMedia, post.id, isMuted]);
-
   const toggleMute = (e: React.MouseEvent) => {
     e.stopPropagation();
-    const nextMuted = !isMuted;
-    setIsMuted(nextMuted);
+    const nextSound = videoCoordinator.toggleSound();
     const video = videoRef.current;
     if (video) {
-      video.muted = nextMuted;
-      video.volume = nextMuted ? 0 : 1.0;
-      // If video wasn't playing and user unmutes, start playing
-      if (video.paused && !nextMuted) {
+      video.muted = !nextSound;
+      video.volume = nextSound ? 1.0 : 0;
+      if (video.paused && nextSound) {
         startPlaying();
       }
     }
@@ -234,9 +221,6 @@ export function PostCard({
           startPlaying();
         } else {
           pauseVideo();
-          if (typeof window !== 'undefined') {
-            (window as any).__beesocialFeedVideoActive = false;
-          }
         }
         clickTimeoutRef.current = null;
       }, 310); // > double-tap window so it won't fire on double-tap
@@ -277,9 +261,6 @@ export function PostCard({
           startPlaying();
         } else {
           pauseVideo();
-          if (typeof window !== 'undefined') {
-            (window as any).__beesocialFeedVideoActive = false;
-          }
         }
         clickTimeoutRef.current = null;
       }, 310);
@@ -475,21 +456,22 @@ export function PostCard({
                 preload="metadata"
                 loop
                 playsInline
-                muted={isMuted}
+                muted={!isSoundOn}
                 className="w-full h-full object-cover cursor-pointer"
               />
 
               {/* Sound Toggle Button (Floating bottom right) */}
               <button
+                type="button"
                 onClick={toggleMute}
                 className={`absolute bottom-3 right-3 px-3 py-1.5 rounded-full backdrop-blur-md border z-20 transition-all cursor-pointer shadow-lg flex items-center gap-1.5 ${
-                  !isMuted
+                  isSoundOn
                     ? 'bg-amber-400 hover:bg-amber-300 text-black border-amber-200 shadow-amber-400/30'
                     : 'bg-black/70 hover:bg-black/90 text-white border-white/20'
                 }`}
-                title={isMuted ? 'Turn Sound ON' : 'Turn Sound OFF'}
+                title={isSoundOn ? 'Turn Sound OFF' : 'Turn Sound ON'}
               >
-                {!isMuted ? (
+                {isSoundOn ? (
                   <>
                     <Volume2 className="w-4 h-4 text-black animate-pulse" />
                     <span className="text-[10px] font-extrabold text-black">Sound ON</span>
@@ -497,7 +479,7 @@ export function PostCard({
                 ) : (
                   <>
                     <VolumeX className="w-4 h-4 text-rose-300" />
-                    <span className="text-[10px] font-bold text-rose-200">Tap to unmute</span>
+                    <span className="text-[10px] font-bold text-rose-200">Muted</span>
                   </>
                 )}
               </button>
@@ -520,7 +502,7 @@ export function PostCard({
               {/* Video Indicator Badge */}
               <div className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-[10px] text-white/90 font-medium pointer-events-none">
                 <Film className="w-3 h-3 text-amber-400" />
-                <span>Reel {!isMuted ? '· 🔊 Audio ON' : ''}</span>
+                <span>Reel {isSoundOn ? '· 🔊 Audio ON' : ''}</span>
               </div>
             </div>
           ) : (

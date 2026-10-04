@@ -22,6 +22,8 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 
+import { videoCoordinator } from '@/lib/video-coordinator';
+
 interface ReelsFeedProps {
   reels: Reel[];
   currentUser: User;
@@ -42,12 +44,17 @@ export function ReelsFeed({
   onReelViewed,
 }: ReelsFeedProps) {
   const [activeReelIndex, setActiveReelIndex] = useState(0);
-  const [isMuted, setIsMuted] = useState(true); // Default muted for instantaneous zero-stutter playback
+  const [isMuted, setIsMuted] = useState(() => !videoCoordinator.isSoundOn()); // Unmuted by default!
   const [isPlaying, setIsPlaying] = useState(true);
   const [activeCommentReel, setActiveCommentReel] = useState<Reel | null>(null);
   const [commentInput, setCommentInput] = useState('');
   const [showShuffleToast, setShowShuffleToast] = useState(false);
   const [, setStoreTick] = useState(0);
+
+  // When Reels mounts, silence any other feed video
+  useEffect(() => {
+    videoCoordinator.pauseAll();
+  }, []);
 
   useEffect(() => {
     const handleUpdate = () => setStoreTick((t) => t + 1);
@@ -100,23 +107,28 @@ export function ReelsFeed({
     }
   }, [activeReelIndex, reels.length, onLoadMore, onReelViewed]);
 
-  // Unmute on first user gesture
+  // Unlock unmuted sound on ANY user gesture (mobile touch, click, scroll, keydown)
   useEffect(() => {
-    const handleFirstGesture = () => {
-      setIsMuted(false);
-      const activeReel = reels[activeReelIndex];
-      if (activeReel) {
-        const curVid = videoMapRef.current.get(activeReel.id);
-        if (curVid) curVid.muted = false;
+    const handleUnlockGesture = () => {
+      if (!isMuted) {
+        const activeReel = reels[activeReelIndex];
+        if (activeReel) {
+          const curVid = videoMapRef.current.get(activeReel.id);
+          if (curVid) {
+            curVid.muted = false;
+            curVid.volume = 1.0;
+          }
+        }
       }
     };
-    window.addEventListener('click', handleFirstGesture, { once: true });
-    window.addEventListener('keydown', handleFirstGesture, { once: true });
+
+    const gestureEvents = ['pointerdown', 'touchstart', 'touchend', 'click', 'keydown', 'scroll'];
+    gestureEvents.forEach((ev) => window.addEventListener(ev, handleUnlockGesture, { passive: true, capture: true }));
+
     return () => {
-      window.removeEventListener('click', handleFirstGesture);
-      window.removeEventListener('keydown', handleFirstGesture);
+      gestureEvents.forEach((ev) => window.removeEventListener(ev, handleUnlockGesture));
     };
-  }, [activeReelIndex, reels]);
+  }, [activeReelIndex, reels, isMuted]);
 
   // Keyboard navigation for reels
   useEffect(() => {
@@ -128,7 +140,11 @@ export function ReelsFeed({
         e.preventDefault();
         goToReel(Math.max(0, activeReelIndex - 1));
       } else if (e.key === 'm' || e.key === 'M') {
-        setIsMuted((prev) => !prev);
+        setIsMuted((prev) => {
+          const next = !prev;
+          videoCoordinator.setSoundEnabled(!next);
+          return next;
+        });
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -144,7 +160,7 @@ export function ReelsFeed({
     }
   };
 
-  // Play/pause and sound management using O(1) map
+  // Play/pause and sound management: STRICTLY the active reel plays unmuted
   useEffect(() => {
     const activeReel = reels[activeReelIndex];
     if (!activeReel) return;
@@ -153,9 +169,11 @@ export function ReelsFeed({
       if (vid) {
         if (id === activeReel.id) {
           vid.muted = isMuted;
+          vid.volume = isMuted ? 0 : 1.0;
           const playPromise = vid.play();
           if (playPromise !== undefined) {
             playPromise.catch(() => {
+              // Browser policy fallback: play muted until first touch
               vid.muted = true;
               vid.play().catch(() => {});
             });
@@ -163,9 +181,20 @@ export function ReelsFeed({
         } else {
           vid.pause();
           vid.currentTime = 0;
+          vid.muted = true;
         }
       }
     });
+
+    return () => {
+      // Pause all on unmount
+      videoMapRef.current.forEach((vid) => {
+        if (vid) {
+          vid.pause();
+          vid.muted = true;
+        }
+      });
+    };
   }, [activeReelIndex, isMuted, reels]);
 
   const handleShuffleClick = () => {

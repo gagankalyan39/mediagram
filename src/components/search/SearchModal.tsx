@@ -17,6 +17,7 @@ import {
   Compass,
   ArrowRight
 } from 'lucide-react';
+import { videoCoordinator } from '@/lib/video-coordinator';
 
 interface SearchModalProps {
   isOpen: boolean;
@@ -30,6 +31,15 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
   const [userResults, setUserResults] = useState<User[]>([]);
   const [postResults, setPostResults] = useState<Post[]>([]);
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      videoCoordinator.setModalOpen(true);
+      return () => {
+        videoCoordinator.setModalOpen(false);
+      };
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;

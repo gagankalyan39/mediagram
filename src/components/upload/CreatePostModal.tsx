@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { GlassModal } from '../glass/GlassModal';
 import { GlassButton } from '../glass/GlassButton';
 import { GlassInput } from '../glass/GlassInput';
@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { generateCloudinaryAIContext, CloudinaryAIContextResult, AICaptionTone } from '@/lib/cloudinary-ai';
 import { getVideoPosterUrl } from '@/lib/cloudinary';
+import { videoCoordinator } from '@/lib/video-coordinator';
 
 interface CreatePostModalProps {
   isOpen: boolean;
@@ -52,6 +53,15 @@ export function CreatePostModal({
   onPostCreated,
   onStoryCreated,
 }: CreatePostModalProps) {
+  useEffect(() => {
+    if (isOpen) {
+      videoCoordinator.setModalOpen(true);
+      return () => {
+        videoCoordinator.setModalOpen(false);
+      };
+    }
+  }, [isOpen]);
+
   const [postType, setPostType] = useState<'feed' | 'reel' | 'story'>('feed');
   const [caption, setCaption] = useState('');
   const [location, setLocation] = useState('');
