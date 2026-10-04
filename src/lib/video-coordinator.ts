@@ -157,15 +157,17 @@ class VideoCoordinator {
         const prev = this.entries.get(this.activeId);
         if (prev) {
           prev.onDeactivate();
+          prev.resetManualPause(); // Clear manual pause so when scrolled back to, it plays!
         }
       }
 
       this.activeId = bestId;
 
-      // Activate new primary video
+      // Activate new primary video: clear manual pause and restart from beginning with sound
       if (bestId) {
         const next = this.entries.get(bestId);
-        if (next && !next.isManuallyPaused()) {
+        if (next) {
+          next.resetManualPause();
           next.onActivate(this.soundEnabled);
         }
       }

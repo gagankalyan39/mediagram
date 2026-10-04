@@ -860,24 +860,16 @@ class MediaGramStore {
     // Compute ML scores for personalized insight explanations
     const mlRanked = rankFeedPostsWithML(this.posts, user);
 
-    // Instagram-style dynamic discovery:
-    // Blend user interest relevance with dynamic randomness so each visit/user gets a vibrant randomized mix of reels & photo posts
-    // Newly created posts by the user or within 24 hours receive high priority at the top of the feed
-    const randomized = mlRanked
-      .map(post => {
-        const isOwner = post.userId === user.id;
-        const isRecent = Date.now() - new Date(post.createdAt).getTime() < 24 * 3600 * 1000;
-        const priorityBonus = isOwner ? 250 : (isRecent ? 120 : 0);
-        return {
-          post,
-          // Composite discovery score: dynamic exploration noise (0-100) + ML affinity bonus (0-25) + priority bonus
-          randomWeight: Math.random() * 100 + ((post.recommendationExplanation?.overallScore || 50) * 0.25) + priorityBonus
-        };
-      })
-      .sort((a, b) => b.randomWeight - a.randomWeight)
-      .map(item => item.post);
+    // Dynamic Fisher-Yates shuffle: every refresh and shuffle yields a fresh, randomized mix of posts & reels
+    const shuffled = [...mlRanked];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const temp = shuffled[i];
+      shuffled[i] = shuffled[j];
+      shuffled[j] = temp;
+    }
 
-    return randomized;
+    return shuffled;
   }
 
   getPosts(randomize: boolean = false): Post[] {
@@ -1076,7 +1068,8 @@ class MediaGramStore {
 
 
   toggleLikePost(postId: string): { isLiked: boolean; likesCount: number } {
-    const post = this.posts.find(p => p.id === postId);
+    const canonicalId = postId.split('_rpt_')[0];
+    const post = this.posts.find(p => p.id === canonicalId || p.id === postId);
     if (!post) throw new Error('Post not found');
 
     post.isLiked = !post.isLiked;
@@ -1103,7 +1096,7 @@ class MediaGramStore {
       });
     }
 
-    const reel = this.reels.find(r => r.postId === postId);
+    const reel = this.reels.find(r => r.postId === canonicalId || r.postId === postId);
     if (reel) {
       reel.isLiked = post.isLiked;
       reel.likesCount = post.likesCount;
@@ -1117,11 +1110,12 @@ class MediaGramStore {
   }
 
   toggleBookmarkPost(postId: string): boolean {
-    const post = this.posts.find(p => p.id === postId);
+    const canonicalId = postId.split('_rpt_')[0];
+    const post = this.posts.find(p => p.id === canonicalId || p.id === postId);
     if (!post) throw new Error('Post not found');
     post.isBookmarked = !post.isBookmarked;
 
-    const reel = this.reels.find(r => r.postId === postId);
+    const reel = this.reels.find(r => r.postId === canonicalId || r.postId === postId);
     if (reel) reel.isBookmarked = post.isBookmarked;
 
     this.saveToStorage();
@@ -1132,7 +1126,8 @@ class MediaGramStore {
   }
 
   addComment(postId: string, content: string): Comment {
-    const post = this.posts.find(p => p.id === postId);
+    const canonicalId = postId.split('_rpt_')[0];
+    const post = this.posts.find(p => p.id === canonicalId || p.id === postId);
     if (!post) throw new Error('Post not found');
 
     const currentUser = this.getCurrentUser();
@@ -1288,6 +1283,75 @@ class MediaGramStore {
     }
 
     return { nextBatch, updatedWatched };
+  }
+
+  /**
+   * Endless Infinite Posts Feed Algorithm:
+   * Unlimited scrolling for home feed (matching Reels stream behavior):
+   * 1. Unseen posts are served in randomized order.
+   * 2. Seen posts repeat occasionally while browsing (~15% chance).
+   * 3. Once all catalog posts have been served, the cycle resets and repeats with fresh repeat keys.
+   * Ensures an infinite stream with zero dead ends.
+   */
+  getNextInfinitePostsBatch(
+    seenPostIds: Set<string>,
+    batchSize: number = 6
+  ): { nextBatch: Post[]; updatedSeen: Set<string> } {
+    const allPosts = this.posts;
+    if (allPosts.length === 0) return { nextBatch: [], updatedSeen: seenPostIds };
+
+    const updatedSeen = new Set(seenPostIds);
+    let unseen = allPosts.filter((p) => !updatedSeen.has(p.id));
+
+    // If all catalog posts have been seen, reset the cycle to repeat all posts
+    if (unseen.length === 0) {
+      updatedSeen.clear();
+      unseen = [...allPosts];
+    }
+
+    // Shuffle unseen candidates (Fisher-Yates)
+    for (let i = unseen.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const t = unseen[i];
+      unseen[i] = unseen[j];
+      unseen[j] = t;
+    }
+
+    const nextBatch: Post[] = [];
+    const seenArray = Array.from(seenPostIds);
+
+    for (let i = 0; i < batchSize; i++) {
+      // 15% chance to occasionally repeat a seen post while browsing (if at least 4 have been seen)
+      const shouldRepeatSeen = seenArray.length >= 4 && Math.random() < 0.15;
+
+      if (shouldRepeatSeen) {
+        const repeatCandidateId = seenArray[Math.floor(Math.random() * seenArray.length)].split('_rpt_')[0];
+        const basePost = allPosts.find((p) => p.id === repeatCandidateId);
+        if (basePost) {
+          nextBatch.push({
+            ...basePost,
+            id: `${basePost.id}_rpt_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+          });
+          continue;
+        }
+      }
+
+      if (unseen.length === 0) {
+        updatedSeen.clear();
+        unseen = [...allPosts].sort(() => Math.random() - 0.5);
+      }
+
+      const nextPost = unseen.pop();
+      if (nextPost) {
+        updatedSeen.add(nextPost.id);
+        nextBatch.push({
+          ...nextPost,
+          id: `${nextPost.id}_rpt_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        });
+      }
+    }
+
+    return { nextBatch, updatedSeen };
   }
 
   toggleLikeReel(reelId: string): { isLiked: boolean; likesCount: number } {

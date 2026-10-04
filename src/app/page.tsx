@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { AppShell } from '@/components/navigation/AppShell';
 import { StoriesBar } from '@/components/feed/StoriesBar';
 import { PostCard } from '@/components/feed/PostCard';
@@ -40,6 +40,11 @@ export default function HomePage() {
   const [isMLModalOpen, setIsMLModalOpen] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
 
+  // Infinite Stream Refs: unlimited scrolling matching Reels
+  const seenPostIdsRef = useRef<Set<string>>(new Set());
+  const isLoadingMoreRef = useRef<boolean>(false);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
   const syncState = () => {
     const cur = store.getCurrentUser();
     setCurrentUser({ ...cur });
@@ -58,49 +63,115 @@ export default function HomePage() {
   };
 
   useEffect(() => {
+    // 1. Enforce manual scroll restoration so reloading ALWAYS comes to the top
+    if (typeof window !== 'undefined') {
+      if ('scrollRestoration' in history) {
+        history.scrollRestoration = 'manual';
+      }
+      window.scrollTo(0, 0);
+    }
+
     setIsMounted(true);
     store.loadFromStorage();
     syncState();
-    // Instagram-style randomized discovery: shuffle dynamically on client mount & per user
+
+    // 2. Dynamic Fisher-Yates shuffle on every page load/refresh
     const randomized = store.getRandomizedPosts(store.getCurrentUser().id);
+    seenPostIdsRef.current = new Set(randomized.map((p) => p.id.split('_rpt_')[0]));
     setPosts(randomized);
 
-    // Reset scroll to top (like Instagram on refresh)
-    window.scrollTo({ top: 0, behavior: 'instant' });
+    // 3. Ensure window is strictly scrolled to top after DOM renders
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+      requestAnimationFrame(() => {
+        window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+      });
+      setTimeout(() => {
+        window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+      }, 60);
+    }
 
     const handleUpdate = () => {
       syncState();
     };
     window.addEventListener('beesocial:store_updated', handleUpdate);
     return () => window.removeEventListener('beesocial:store_updated', handleUpdate);
-  }, [currentUser.id]);
+  }, []);
+
+  // Endless Infinite Scroll: Automatically loads more posts when approaching bottom
+  const handleLoadMorePosts = () => {
+    if (isLoadingMoreRef.current) return;
+    isLoadingMoreRef.current = true;
+
+    const { nextBatch, updatedSeen } = store.getNextInfinitePostsBatch(seenPostIdsRef.current, 6);
+    seenPostIdsRef.current = updatedSeen;
+    setPosts((prev) => [...prev, ...nextBatch]);
+
+    setTimeout(() => {
+      isLoadingMoreRef.current = false;
+    }, 300);
+  };
+
+  // IntersectionObserver for the infinite stream sentinel
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          handleLoadMorePosts();
+        }
+      },
+      { rootMargin: '600px' } // Preload when 600px from the bottom
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [posts.length]);
 
   const handleShuffleFeed = () => {
     setIsShuffling(true);
+    seenPostIdsRef.current.clear();
     const randomized = store.getRandomizedPosts(currentUser.id);
+    seenPostIdsRef.current = new Set(randomized.map((p) => p.id.split('_rpt_')[0]));
     setPosts([...randomized]);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
     setTimeout(() => setIsShuffling(false), 400);
   };
 
   const handleToggleLike = (postId: string) => {
     const res = store.toggleLikePost(postId);
+    const canonicalId = postId.split('_rpt_')[0];
     setPosts(prev =>
-      prev.map(p => (p.id === postId ? { ...p, isLiked: res.isLiked, likesCount: res.likesCount } : p))
+      prev.map(p => {
+        if (p.id === postId || p.id.split('_rpt_')[0] === canonicalId) {
+          return { ...p, isLiked: res.isLiked, likesCount: res.likesCount };
+        }
+        return p;
+      })
     );
   };
 
   const handleToggleBookmark = (postId: string) => {
     const isBookmarked = store.toggleBookmarkPost(postId);
+    const canonicalId = postId.split('_rpt_')[0];
     setPosts(prev =>
-      prev.map(p => (p.id === postId ? { ...p, isBookmarked } : p))
+      prev.map(p => {
+        if (p.id === postId || p.id.split('_rpt_')[0] === canonicalId) {
+          return { ...p, isBookmarked };
+        }
+        return p;
+      })
     );
   };
 
   const handleAddComment = (postId: string, content: string) => {
     const newComment = store.addComment(postId, content);
+    const canonicalId = postId.split('_rpt_')[0];
     setPosts(prev =>
       prev.map(p =>
-        p.id === postId
+        p.id === postId || p.id.split('_rpt_')[0] === canonicalId
           ? {
               ...p,
               commentsCount: p.commentsCount + 1,
@@ -112,11 +183,13 @@ export default function HomePage() {
   };
 
   const handlePostDeleted = (postId: string) => {
-    setPosts(prev => prev.filter(p => p.id !== postId));
+    const canonicalId = postId.split('_rpt_')[0];
+    setPosts(prev => prev.filter(p => p.id.split('_rpt_')[0] !== canonicalId));
   };
 
   const handlePostEdited = (postId: string, caption: string) => {
-    setPosts(prev => prev.map(p => p.id === postId ? { ...p, caption } : p));
+    const canonicalId = postId.split('_rpt_')[0];
+    setPosts(prev => prev.map(p => p.id.split('_rpt_')[0] === canonicalId ? { ...p, caption } : p));
   };
 
   // Sort posts depending on feedMode (memoized)
@@ -258,6 +331,14 @@ export default function HomePage() {
                 onPostEdited={handlePostEdited}
               />
             ))}
+
+            {/* Endless Infinite Feed Loading Sentinel */}
+            <div ref={sentinelRef} className="py-8 flex items-center justify-center">
+              <div className="flex items-center gap-2.5 px-4 py-2 rounded-full glass border border-white/10 text-white/60 text-xs shadow-lg">
+                <div className="w-3.5 h-3.5 border-2 border-amber-400/50 border-t-amber-400 rounded-full animate-spin" />
+                <span className="font-medium text-white/70">Loading more posts...</span>
+              </div>
+            </div>
           </div>
         </div>
 

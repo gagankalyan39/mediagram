@@ -114,6 +114,10 @@ export function PostCard({
       video: video,
       onActivate: (unmuted) => {
         setIsPlaying(true);
+        // Restart video from the beginning as requested by user
+        try {
+          video.currentTime = 0;
+        } catch (_) {}
         video.loop = true;
         video.playsInline = true;
         if (unmuted) {
@@ -133,6 +137,9 @@ export function PostCard({
       },
       onDeactivate: () => {
         video.pause();
+        try {
+          video.currentTime = 0; // Rewind to 0 so when scrolled back to, it is at the beginning
+        } catch (_) {}
         setIsPlaying(false);
         video.muted = true;
       },

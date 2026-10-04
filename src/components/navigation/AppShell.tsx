@@ -37,6 +37,13 @@ export function AppShell({ children }: AppShellProps) {
   const [activeStoryIndex, setActiveStoryIndex] = useState<number | null>(null);
   const pathname = usePathname();
 
+  // Enforce manual scroll restoration so reloading starts at top
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'scrollRestoration' in history) {
+      history.scrollRestoration = 'manual';
+    }
+  }, []);
+
   // Route protection & storage hydration
   useEffect(() => {
     store.loadFromStorage();
