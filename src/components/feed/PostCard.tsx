@@ -21,6 +21,8 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
+import { getVideoPosterUrl } from '@/lib/cloudinary';
+import { store } from '@/lib/store';
 
 interface PostCardProps {
   post: Post;
@@ -42,105 +44,144 @@ export function PostCard({
   const [commentText, setCommentText] = useState('');
   const [showAllComments, setShowAllComments] = useState(false);
 
-  // Home feed video auto-play on scroll & sound controls
+  // Home feed video auto-play & unmuted playback with single-active video coordination
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [isMuted, setIsMuted] = useState(false); // Home page reels play with sound ON by default
+  const [isMuted, setIsMuted] = useState(false); // Unmuted by default per user request
+  const [isInView, setIsInView] = useState(false);
+
+  // Dynamic Follow state synced with platform store
+  const [isFollowing, setIsFollowing] = useState<boolean>(() =>
+    typeof store.isFollowing === 'function' ? store.isFollowing(post.user.id) : false
+  );
+
+  useEffect(() => {
+    const handleStoreUpdate = () => {
+      if (typeof store.isFollowing === 'function') {
+        setIsFollowing(store.isFollowing(post.user.id));
+      }
+    };
+    window.addEventListener('beesocial:store_updated', handleStoreUpdate);
+    return () => window.removeEventListener('beesocial:store_updated', handleStoreUpdate);
+  }, [post.user.id]);
+
+  const handleToggleFollow = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (typeof store.toggleFollow === 'function') {
+      const res = store.toggleFollow(post.user.id);
+      setIsFollowing(res);
+    }
+  };
+
+  // Coordinated double-tap detection: ensures double tap LIKES and NEVER toggles play/pause
+  const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastTapTimeRef = useRef<number>(0);
 
   const mediaList = post.media || [];
   const activeMedia = mediaList[currentMediaIndex];
 
-  const playVideo = React.useCallback(async () => {
+  const startPlaying = () => {
     const video = videoRef.current;
     if (!video) return;
 
-    // First attempt: try playing with unmuted audio
-    try {
-      video.muted = isMuted;
-      video.volume = 1.0;
-      await video.play();
-      setIsPlaying(true);
-      return;
-    } catch {
-      // Browser autoplay policy restricted unmuted audio before user gesture
+    if (typeof window !== 'undefined') {
+      (window as any).__beesocialFeedVideoActive = true;
+      window.dispatchEvent(
+        new CustomEvent('beesocial:active_video', { detail: { postId: post.id } })
+      );
     }
 
-    // Second attempt: play muted so motion is guaranteed immediately
-    try {
-      video.muted = true;
-      await video.play();
-      setIsPlaying(true);
-    } catch (e) {
-      console.warn('Autoplay prevented:', e);
-    }
-  }, [isMuted]);
+    video.muted = isMuted;
+    video.volume = isMuted ? 0 : 1.0;
+    video.loop = true;
 
-  // Auto-play the video when scrolled into viewport; pause when scrolled away
+    const playPromise = video.play();
+    if (playPromise !== undefined) {
+      playPromise
+        .then(() => setIsPlaying(true))
+        .catch(() => {
+          // If browser restricts unmuted autoplay before any gesture, play muted temporarily
+          video.muted = true;
+          video.play().then(() => setIsPlaying(true)).catch(() => {});
+        });
+    }
+  };
+
+  const pauseVideo = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    video.pause();
+    setIsPlaying(false);
+  };
+
+  // Listen for other videos playing so ONLY the focused video plays and others pause
+  useEffect(() => {
+    const onActiveVideo = (e: Event) => {
+      const customEvent = e as CustomEvent<{ postId: string }>;
+      if (customEvent.detail?.postId !== post.id) {
+        const video = videoRef.current;
+        if (video && !video.paused) {
+          video.pause();
+          setIsPlaying(false);
+        }
+      }
+    };
+
+    window.addEventListener('beesocial:active_video', onActiveVideo);
+    return () => {
+      window.removeEventListener('beesocial:active_video', onActiveVideo);
+    };
+  }, [post.id]);
+
+  // On page reload, do NOT auto-play. Only start when user presses play or scrolls into primary focus after play is initiated.
   useEffect(() => {
     const video = videoRef.current;
     const container = containerRef.current;
-    if (!video || !container || activeMedia?.resourceType !== 'video') return;
-
-    // Check if initially in view on page load
-    const rect = container.getBoundingClientRect();
-    if (rect.top < window.innerHeight && rect.bottom > 0) {
-      playVideo();
-    }
+    if (!container || activeMedia?.resourceType !== 'video') return;
 
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
-          if (entry.isIntersecting && entry.intersectionRatio >= 0.15) {
-            playVideo();
+          const isPrimaryVisible = entry.isIntersecting && entry.intersectionRatio >= 0.65;
+          setIsInView(entry.isIntersecting);
+
+          if (isPrimaryVisible) {
+            // When user is actively watching feed videos, automatically switch playback to the centered video
+            if (typeof window !== 'undefined' && (window as any).__beesocialFeedVideoActive) {
+              if (video && video.paused) {
+                startPlaying();
+              }
+            }
           } else {
-            video.pause();
-            setIsPlaying(false);
+            // When scrolled away from view, PAUSE THIS VIDEO so only the video currently in view plays!
+            if (video && !video.paused) {
+              pauseVideo();
+            }
           }
         });
       },
       {
-        threshold: [0, 0.15, 0.5],
+        threshold: [0.1, 0.65],
       }
     );
 
     observer.observe(container);
     return () => observer.disconnect();
-  }, [activeMedia, playVideo]);
-
-  // Unmute on first user interaction if browser restricted audio on page load
-  useEffect(() => {
-    const unlockAudio = () => {
-      const video = videoRef.current;
-      if (video && !video.paused) {
-        video.muted = false;
-        video.volume = 1.0;
-        setIsMuted(false);
-      }
-    };
-    window.addEventListener('click', unlockAudio, { passive: true });
-    window.addEventListener('scroll', unlockAudio, { passive: true });
-    window.addEventListener('keydown', unlockAudio, { passive: true });
-    window.addEventListener('touchstart', unlockAudio, { passive: true });
-    return () => {
-      window.removeEventListener('click', unlockAudio);
-      window.removeEventListener('scroll', unlockAudio);
-      window.removeEventListener('keydown', unlockAudio);
-      window.removeEventListener('touchstart', unlockAudio);
-    };
-  }, []);
+  }, [activeMedia, post.id, isMuted]);
 
   const togglePlayPause = (e: React.MouseEvent) => {
     e.stopPropagation();
     const video = videoRef.current;
     if (!video) return;
+
     if (video.paused) {
-      video.muted = isMuted;
-      video.volume = 1.0;
-      video.play().then(() => setIsPlaying(true)).catch(() => {});
+      startPlaying();
     } else {
-      video.pause();
-      setIsPlaying(false);
+      pauseVideo();
+      if (typeof window !== 'undefined') {
+        (window as any).__beesocialFeedVideoActive = false;
+      }
     }
   };
 
@@ -151,9 +192,7 @@ export function PostCard({
     const video = videoRef.current;
     if (video) {
       video.muted = nextMuted;
-      if (!nextMuted) {
-        video.volume = 1.0;
-      }
+      video.volume = nextMuted ? 0 : 1.0;
     }
   };
 
@@ -163,6 +202,58 @@ export function PostCard({
     }
     setShowHeartPop(true);
     setTimeout(() => setShowHeartPop(false), 800);
+  };
+
+  const handleMediaClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const now = Date.now();
+    const timeDiff = now - lastTapTimeRef.current;
+
+    if (timeDiff > 0 && timeDiff < 320) {
+      // Double click / tap detected!
+      if (clickTimeoutRef.current) {
+        clearTimeout(clickTimeoutRef.current);
+        clickTimeoutRef.current = null;
+      }
+      lastTapTimeRef.current = 0;
+      handleDoubleTap();
+      return;
+    }
+
+    lastTapTimeRef.current = now;
+
+    // Single click: if video, schedule play/pause toggle after grace period
+    if (activeMedia?.resourceType === 'video') {
+      clickTimeoutRef.current = setTimeout(() => {
+        const video = videoRef.current;
+        if (!video) return;
+        if (video.paused) {
+          startPlaying();
+        } else {
+          pauseVideo();
+          if (typeof window !== 'undefined') {
+            (window as any).__beesocialFeedVideoActive = false;
+          }
+        }
+        clickTimeoutRef.current = null;
+      }, 260);
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    const now = Date.now();
+    const timeDiff = now - lastTapTimeRef.current;
+    if (timeDiff > 0 && timeDiff < 320) {
+      e.preventDefault();
+      if (clickTimeoutRef.current) {
+        clearTimeout(clickTimeoutRef.current);
+        clickTimeoutRef.current = null;
+      }
+      lastTapTimeRef.current = 0;
+      handleDoubleTap();
+      return;
+    }
+    lastTapTimeRef.current = now;
   };
 
   const handleCommentSubmit = (e: React.FormEvent) => {
@@ -187,7 +278,7 @@ export function PostCard({
             />
           </Link>
           <div>
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 flex-wrap">
               <Link
                 href={`/profile/${post.user.username}`}
                 className="text-xs font-bold text-white hover:underline"
@@ -196,6 +287,19 @@ export function PostCard({
               </Link>
               {post.user.isVerified && (
                 <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+              )}
+              {post.user.id !== currentUser.id && (
+                <button
+                  type="button"
+                  onClick={handleToggleFollow}
+                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full transition-all cursor-pointer border ml-1 ${
+                    isFollowing
+                      ? 'bg-white/10 hover:bg-white/20 text-white/70 border-white/10'
+                      : 'bg-amber-400 hover:bg-amber-300 text-black border-amber-300 shadow-sm shadow-amber-400/20'
+                  }`}
+                >
+                  {isFollowing ? 'Following' : 'Follow'}
+                </button>
               )}
             </div>
             {post.location && (
@@ -235,29 +339,24 @@ export function PostCard({
       <div
         ref={containerRef}
         className="relative w-full aspect-[4/5] sm:aspect-square bg-black/60 overflow-hidden select-none cursor-pointer flex items-center justify-center group"
-        onDoubleClick={handleDoubleTap}
+        onClick={handleMediaClick}
+        onTouchEnd={handleTouchEnd}
       >
         {activeMedia ? (
           activeMedia.resourceType === 'video' ? (
             <div className="relative w-full h-full flex items-center justify-center">
               <video
                 ref={videoRef}
-                src={`${activeMedia.optimizedUrl || activeMedia.originalUrl}#t=0.001`}
-                preload="auto"
-                autoPlay
+                src={activeMedia.optimizedUrl || activeMedia.originalUrl}
+                poster={
+                  activeMedia.thumbnailUrl && !activeMedia.thumbnailUrl.toLowerCase().includes('.mp4')
+                    ? activeMedia.thumbnailUrl
+                    : getVideoPosterUrl(activeMedia.originalUrl || activeMedia.optimizedUrl || '')
+                }
+                preload="metadata"
                 loop
                 playsInline
                 muted={isMuted}
-                onClick={togglePlayPause}
-                onLoadedData={() => {
-                  const container = containerRef.current;
-                  if (container) {
-                    const rect = container.getBoundingClientRect();
-                    if (rect.top < window.innerHeight && rect.bottom > 0) {
-                      playVideo();
-                    }
-                  }
-                }}
                 className="w-full h-full object-cover cursor-pointer"
               />
 
@@ -271,15 +370,15 @@ export function PostCard({
                 }`}
                 title={isMuted ? 'Turn Sound ON' : 'Turn Sound OFF'}
               >
-                {isMuted ? (
-                  <>
-                    <VolumeX className="w-4 h-4 text-rose-300" />
-                    <span className="text-[10px] font-bold text-rose-200">Muted</span>
-                  </>
-                ) : (
+                {!isMuted ? (
                   <>
                     <Volume2 className="w-4 h-4 text-black animate-pulse" />
                     <span className="text-[10px] font-extrabold text-black">Sound ON</span>
+                  </>
+                ) : (
+                  <>
+                    <VolumeX className="w-4 h-4 text-rose-300" />
+                    <span className="text-[10px] font-bold text-rose-200">Muted</span>
                   </>
                 )}
               </button>
@@ -287,11 +386,16 @@ export function PostCard({
               {/* Play / Pause Indicator Overlay */}
               {!isPlaying && (
                 <div
-                  onClick={togglePlayPause}
-                  className="absolute inset-0 flex items-center justify-center bg-black/25 pointer-events-auto cursor-pointer"
+                  className="absolute inset-0 flex items-center justify-center bg-black/30 backdrop-blur-[1px] pointer-events-none"
                 >
-                  <div className="w-12 h-12 rounded-full bg-black/60 backdrop-blur-md border border-white/20 flex items-center justify-center text-white shadow-xl hover:scale-110 transition-transform">
-                    <Play className="w-6 h-6 fill-white ml-0.5" />
+                  <div
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      startPlaying();
+                    }}
+                    className="w-14 h-14 rounded-full bg-black/70 backdrop-blur-md border border-amber-400/40 flex items-center justify-center text-amber-300 shadow-2xl hover:scale-110 hover:bg-amber-400 hover:text-black transition-all cursor-pointer pointer-events-auto"
+                  >
+                    <Play className="w-6 h-6 fill-current ml-0.5" />
                   </div>
                 </div>
               )}
@@ -306,6 +410,8 @@ export function PostCard({
             <img
               src={activeMedia.optimizedUrl || activeMedia.originalUrl}
               alt={post.caption}
+              loading="lazy"
+              decoding="async"
               className="w-full h-full object-cover transition-opacity duration-300"
             />
           )
@@ -369,8 +475,9 @@ export function PostCard({
           <div className="flex items-center gap-4">
             {/* Like */}
             <button
+              type="button"
               onClick={() => onToggleLike(post.id)}
-              className="group cursor-pointer transition-transform active:scale-125"
+              className="p-2 -m-2 group cursor-pointer transition-transform active:scale-125 touch-manipulation select-none flex items-center justify-center min-w-[40px] min-h-[40px]"
             >
               <Heart
                 className={`w-6 h-6 transition-colors ${
@@ -383,20 +490,22 @@ export function PostCard({
 
             {/* Comment */}
             <button
+              type="button"
               onClick={() => setShowAllComments(!showAllComments)}
-              className="text-white/80 hover:text-white transition-colors cursor-pointer"
+              className="p-2 -m-2 text-white/80 hover:text-white transition-colors cursor-pointer touch-manipulation select-none flex items-center justify-center min-w-[40px] min-h-[40px]"
             >
               <MessageCircle className="w-6 h-6" />
             </button>
 
             {/* Share */}
             <button
+              type="button"
               onClick={() => {
                 if (navigator.share) {
                   navigator.share({ title: 'MediaGram Post', url: window.location.href });
                 }
               }}
-              className="text-white/80 hover:text-white transition-colors cursor-pointer"
+              className="p-2 -m-2 text-white/80 hover:text-white transition-colors cursor-pointer touch-manipulation select-none flex items-center justify-center min-w-[40px] min-h-[40px]"
             >
               <Share2 className="w-6 h-6" />
             </button>
@@ -404,8 +513,9 @@ export function PostCard({
 
           {/* Bookmark */}
           <button
+            type="button"
             onClick={() => onToggleBookmark(post.id)}
-            className="text-white/80 hover:text-amber-400 transition-colors cursor-pointer"
+            className="p-2 -m-2 text-white/80 hover:text-amber-400 transition-colors cursor-pointer touch-manipulation select-none flex items-center justify-center min-w-[40px] min-h-[40px]"
           >
             <Bookmark
               className={`w-6 h-6 ${

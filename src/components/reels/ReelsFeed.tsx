@@ -28,6 +28,8 @@ interface ReelsFeedProps {
   onToggleLike: (reelId: string) => void;
   onToggleBookmark: (postId: string) => void;
   onShuffle?: () => void;
+  onLoadMore?: () => void;
+  onReelViewed?: (reelId: string) => void;
 }
 
 export function ReelsFeed({
@@ -36,22 +38,76 @@ export function ReelsFeed({
   onToggleLike,
   onToggleBookmark,
   onShuffle,
+  onLoadMore,
+  onReelViewed,
 }: ReelsFeedProps) {
   const [activeReelIndex, setActiveReelIndex] = useState(0);
-  const [isMuted, setIsMuted] = useState(false); // Reels automatically have sound on
+  const [isMuted, setIsMuted] = useState(true); // Default muted for instantaneous zero-stutter playback
   const [isPlaying, setIsPlaying] = useState(true);
   const [activeCommentReel, setActiveCommentReel] = useState<Reel | null>(null);
   const [commentInput, setCommentInput] = useState('');
-  const videoRefs = useRef<(HTMLVideoElement | null)[]>([]);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [showShuffleToast, setShowShuffleToast] = useState(false);
+  const [, setStoreTick] = useState(0);
 
-  // Unmute on first user click if browser autoplay policy initially required muted
+  useEffect(() => {
+    const handleUpdate = () => setStoreTick((t) => t + 1);
+    window.addEventListener('beesocial:store_updated', handleUpdate);
+    return () => window.removeEventListener('beesocial:store_updated', handleUpdate);
+  }, []);
+  
+  // DSA: Fast O(1) video element lookup map to ensure correct video control across reorders
+  const videoMapRef = useRef<Map<string, HTMLVideoElement>>(new Map());
+  const containerRef = useRef<HTMLDivElement>(null);
+  const lastTapRef = useRef<number>(0);
+  const clickTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Automatic snap scroll intersection observer
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const items = container.querySelectorAll('.reel-item');
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
+            const idxStr = entry.target.getAttribute('data-reel-index');
+            if (idxStr !== null) {
+              const idx = parseInt(idxStr, 10);
+              setActiveReelIndex(idx);
+            }
+          }
+        });
+      },
+      {
+        root: container,
+        threshold: 0.5,
+      }
+    );
+
+    items.forEach((item) => observer.observe(item));
+    return () => observer.disconnect();
+  }, [reels]);
+
+  // Infinite Stream: Trigger onLoadMore and register watched reel
+  useEffect(() => {
+    if (activeReelIndex >= reels.length - 3 && onLoadMore) {
+      onLoadMore();
+    }
+    const currentReel = reels[activeReelIndex];
+    if (currentReel && onReelViewed) {
+      onReelViewed(currentReel.id);
+    }
+  }, [activeReelIndex, reels.length, onLoadMore, onReelViewed]);
+
+  // Unmute on first user gesture
   useEffect(() => {
     const handleFirstGesture = () => {
       setIsMuted(false);
-      const curVid = videoRefs.current[activeReelIndex];
-      if (curVid) {
-        curVid.muted = false;
+      const activeReel = reels[activeReelIndex];
+      if (activeReel) {
+        const curVid = videoMapRef.current.get(activeReel.id);
+        if (curVid) curVid.muted = false;
       }
     };
     window.addEventListener('click', handleFirstGesture, { once: true });
@@ -60,7 +116,7 @@ export function ReelsFeed({
       window.removeEventListener('click', handleFirstGesture);
       window.removeEventListener('keydown', handleFirstGesture);
     };
-  }, [activeReelIndex]);
+  }, [activeReelIndex, reels]);
 
   // Keyboard navigation for reels
   useEffect(() => {
@@ -81,22 +137,25 @@ export function ReelsFeed({
 
   const goToReel = (index: number) => {
     setActiveReelIndex(index);
-    const targetElement = videoRefs.current[index]?.parentElement;
-    if (targetElement) {
-      targetElement.scrollIntoView({ behavior: 'smooth' });
+    const reel = reels[index];
+    if (reel) {
+      const vid = videoMapRef.current.get(reel.id);
+      vid?.parentElement?.scrollIntoView({ behavior: 'smooth' });
     }
   };
 
-  // Play/pause and sound management
+  // Play/pause and sound management using O(1) map
   useEffect(() => {
-    videoRefs.current.forEach((vid, idx) => {
+    const activeReel = reels[activeReelIndex];
+    if (!activeReel) return;
+
+    videoMapRef.current.forEach((vid, id) => {
       if (vid) {
-        if (idx === activeReelIndex) {
+        if (id === activeReel.id) {
           vid.muted = isMuted;
           const playPromise = vid.play();
           if (playPromise !== undefined) {
             playPromise.catch(() => {
-              // If browser blocked unmuted autoplay, play muted then user gesture unmutes
               vid.muted = true;
               vid.play().catch(() => {});
             });
@@ -107,19 +166,68 @@ export function ReelsFeed({
         }
       }
     });
-  }, [activeReelIndex, isMuted]);
+  }, [activeReelIndex, isMuted, reels]);
 
-  const handleVideoClick = (index: number) => {
-    const vid = videoRefs.current[index];
-    if (vid) {
-      if (vid.paused) {
-        vid.play();
-        setIsPlaying(true);
-      } else {
-        vid.pause();
-        setIsPlaying(false);
-      }
+  const handleShuffleClick = () => {
+    setShowShuffleToast(true);
+    setTimeout(() => setShowShuffleToast(false), 2200);
+    if (containerRef.current) {
+      containerRef.current.scrollTop = 0;
     }
+    setActiveReelIndex(0);
+    if (onShuffle) {
+      onShuffle();
+    }
+  };
+
+  const handleVideoTap = (reel: Reel) => {
+    const now = Date.now();
+    const diff = now - lastTapRef.current;
+    if (diff > 0 && diff < 320) {
+      // Double tap detected! Like reel without play/pause toggle
+      if (clickTimerRef.current) {
+        clearTimeout(clickTimerRef.current);
+        clickTimerRef.current = null;
+      }
+      lastTapRef.current = 0;
+      if (!reel.isLiked) {
+        onToggleLike(reel.id);
+      }
+      return;
+    }
+    lastTapRef.current = now;
+
+    clickTimerRef.current = setTimeout(() => {
+      const vid = videoMapRef.current.get(reel.id);
+      if (vid) {
+        if (vid.paused) {
+          vid.play().catch(() => {});
+          setIsPlaying(true);
+        } else {
+          vid.pause();
+          setIsPlaying(false);
+        }
+      }
+      clickTimerRef.current = null;
+    }, 260);
+  };
+
+  const handleVideoTouchEnd = (e: React.TouchEvent, reel: Reel) => {
+    const now = Date.now();
+    const diff = now - lastTapRef.current;
+    if (diff > 0 && diff < 320) {
+      e.preventDefault();
+      if (clickTimerRef.current) {
+        clearTimeout(clickTimerRef.current);
+        clickTimerRef.current = null;
+      }
+      lastTapRef.current = 0;
+      if (!reel.isLiked) {
+        onToggleLike(reel.id);
+      }
+      return;
+    }
+    lastTapRef.current = now;
   };
 
   const handleAddComment = (e: React.FormEvent) => {
@@ -133,28 +241,45 @@ export function ReelsFeed({
 
   return (
     <div className="flex items-center justify-center gap-4 w-full min-h-[calc(100vh-80px)] relative">
+      {/* Dynamic Shuffle Feedback Toast */}
+      {showShuffleToast && (
+        <div className="absolute top-2 z-50 px-4 py-2 rounded-full bg-emerald-400 text-black font-extrabold text-xs shadow-2xl backdrop-blur-md flex items-center gap-2 animate-pulse border border-emerald-200">
+          <Shuffle className="w-3.5 h-3.5" />
+          <span>Shuffled! Discovering fresh reels...</span>
+        </div>
+      )}
+
       {/* Main Reels Vertical Snap Container */}
       <div
         ref={containerRef}
         className="w-full max-w-[420px] reels-container rounded-3xl"
       >
         {reels.map((reel, index) => {
+          const isNearActive = Math.abs(index - activeReelIndex) <= 1;
+
           return (
             <div
               key={reel.id}
+              data-reel-index={index}
               className="reel-item relative w-full h-[calc(100vh-80px)] max-h-[820px] rounded-3xl overflow-hidden glass border border-white/15 my-2 shadow-2xl flex items-center justify-center bg-black"
             >
-              {/* Main Video Element */}
+              {/* Main Video Element with O(1) Map Registration */}
               <video
                 ref={(el) => {
-                  videoRefs.current[index] = el;
+                  if (el) {
+                    videoMapRef.current.set(reel.id, el);
+                  } else {
+                    videoMapRef.current.delete(reel.id);
+                  }
                 }}
-                src={`${reel.videoUrl}#t=0.001`}
-                preload="auto"
+                src={reel.videoUrl}
+                poster={reel.posterUrl && !reel.posterUrl.includes('.mp4') ? reel.posterUrl : undefined}
+                preload={isNearActive ? "metadata" : "none"}
                 loop
                 playsInline
                 muted={isMuted}
-                onClick={() => handleVideoClick(index)}
+                onClick={() => handleVideoTap(reel)}
+                onTouchEnd={(e) => handleVideoTouchEnd(e, reel)}
                 className="w-full h-full object-cover cursor-pointer select-none"
               />
 
@@ -168,9 +293,9 @@ export function ReelsFeed({
 
                   {onShuffle && (
                     <button
-                      onClick={onShuffle}
-                      className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-black/60 hover:bg-black/80 backdrop-blur-md border border-emerald-500/30 text-[10px] text-emerald-300 font-semibold shadow-lg transition-all cursor-pointer hover:border-emerald-400 hover:scale-105"
-                      title="Shuffle Reels (Instagram Random Discovery)"
+                      onClick={handleShuffleClick}
+                      className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 hover:bg-emerald-500/30 backdrop-blur-md border border-emerald-400/50 text-[11px] text-emerald-300 font-bold shadow-lg transition-all cursor-pointer hover:scale-105 active:scale-95"
+                      title="Shuffle Reels (DSA Fisher-Yates Random Discovery)"
                     >
                       <Shuffle className="w-3 h-3 text-emerald-400" />
                       <span>Randomize</span>
@@ -217,10 +342,11 @@ export function ReelsFeed({
 
                 {/* Like Button */}
                 <button
+                  type="button"
                   onClick={() => onToggleLike(reel.id)}
-                  className="flex flex-col items-center gap-1 group cursor-pointer"
+                  className="flex flex-col items-center gap-1 group cursor-pointer touch-manipulation select-none active:scale-110"
                 >
-                  <div className="p-2.5 rounded-full bg-black/40 backdrop-blur-md border border-white/10 group-hover:scale-110 group-hover:bg-black/60 transition-all">
+                  <div className="p-3 rounded-full bg-black/50 backdrop-blur-md border border-white/10 group-hover:scale-110 group-hover:bg-black/70 transition-all">
                     <Heart
                       className={`w-6 h-6 transition-colors ${
                         reel.isLiked
@@ -236,10 +362,11 @@ export function ReelsFeed({
 
                 {/* Comments Button */}
                 <button
+                  type="button"
                   onClick={() => setActiveCommentReel(reel)}
-                  className="flex flex-col items-center gap-1 group cursor-pointer"
+                  className="flex flex-col items-center gap-1 group cursor-pointer touch-manipulation select-none active:scale-110"
                 >
-                  <div className="p-2.5 rounded-full bg-black/40 backdrop-blur-md border border-white/10 group-hover:scale-110 group-hover:bg-black/60 transition-all">
+                  <div className="p-3 rounded-full bg-black/50 backdrop-blur-md border border-white/10 group-hover:scale-110 group-hover:bg-black/70 transition-all">
                     <MessageCircle className="w-6 h-6 text-white group-hover:text-amber-400" />
                   </div>
                   <span className="text-[11px] font-bold text-white shadow-sm">
@@ -249,14 +376,15 @@ export function ReelsFeed({
 
                 {/* Share Button */}
                 <button
+                  type="button"
                   onClick={() => {
                     if (navigator.share) {
                       navigator.share({ title: reel.caption, url: window.location.href });
                     }
                   }}
-                  className="flex flex-col items-center gap-1 group cursor-pointer"
+                  className="flex flex-col items-center gap-1 group cursor-pointer touch-manipulation select-none active:scale-110"
                 >
-                  <div className="p-2.5 rounded-full bg-black/40 backdrop-blur-md border border-white/10 group-hover:scale-110 transition-all">
+                  <div className="p-3 rounded-full bg-black/50 backdrop-blur-md border border-white/10 group-hover:scale-110 transition-all">
                     <Share2 className="w-6 h-6 text-white group-hover:text-cyan-400" />
                   </div>
                   <span className="text-[11px] font-bold text-white shadow-sm">
@@ -266,8 +394,9 @@ export function ReelsFeed({
 
                 {/* Bookmark Button */}
                 <button
+                  type="button"
                   onClick={() => onToggleBookmark(reel.postId)}
-                  className="p-2.5 rounded-full bg-black/40 backdrop-blur-md border border-white/10 hover:scale-110 transition-all cursor-pointer"
+                  className="p-3 rounded-full bg-black/50 backdrop-blur-md border border-white/10 hover:scale-110 active:scale-110 transition-all cursor-pointer touch-manipulation select-none"
                 >
                   <Bookmark
                     className={`w-6 h-6 ${
@@ -294,9 +423,20 @@ export function ReelsFeed({
                   {reel.user.isVerified && (
                     <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
                   )}
-                  <button className="px-3 py-1 rounded-full bg-white/20 hover:bg-white/30 backdrop-blur-md text-[11px] font-semibold text-white border border-white/20 ml-2 transition-all cursor-pointer">
-                    Follow
-                  </button>
+                  {reel.userId !== currentUser.id && (
+                    <button
+                      onClick={() => {
+                        store.toggleFollow(reel.userId);
+                      }}
+                      className={`px-3 py-1 rounded-full backdrop-blur-md text-[11px] font-bold border ml-2 transition-all cursor-pointer ${
+                        store.isFollowing(reel.userId)
+                          ? 'bg-white/20 hover:bg-white/30 text-white/80 border-white/20'
+                          : 'bg-amber-400 hover:bg-amber-300 text-black border-amber-300 shadow-md'
+                      }`}
+                    >
+                      {store.isFollowing(reel.userId) ? 'Following' : 'Follow'}
+                    </button>
+                  )}
                 </div>
 
                 <p className="text-xs text-white/90 drop-shadow line-clamp-2 leading-relaxed">

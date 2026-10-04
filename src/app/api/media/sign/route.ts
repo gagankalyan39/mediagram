@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generateUploadSignature, MediaFolderType } from '@/lib/cloudinary';
+import { generateUploadSignature } from '@/lib/cloudinary-server';
+import { MediaFolderType } from '@/lib/cloudinary';
 
 export const dynamic = 'force-dynamic';
 

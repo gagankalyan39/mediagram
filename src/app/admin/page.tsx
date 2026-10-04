@@ -16,16 +16,16 @@ function AdminPageContent() {
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(false);
   const [isCheckingAuth, setIsCheckingAuth] = useState<boolean>(true);
 
-  const [stats, setStats] = useState(store.getAdminStats());
-  const [users, setUsers] = useState<User[]>(store.getAllUsers());
-  const [posts, setPosts] = useState(store.getPosts());
-  const [mediaAssets, setMediaAssets] = useState(store.getAllMediaAssets());
+  const [stats, setStats] = useState(() => store.getAdminStats());
+  const [users, setUsers] = useState<User[]>(() => store.getAllUsers());
+  const [posts, setPosts] = useState(() => store.getRawPosts());
+  const [mediaAssets, setMediaAssets] = useState(() => store.getAllMediaAssets());
 
   const refreshAdmin = () => {
     setStats(store.getAdminStats());
     setUsers([...store.getAllUsers()]);
-    setPosts([...store.getPosts()]);
-    setMediaAssets([...store.getAllMediaAssets()]);
+    setPosts(store.getRawPosts());
+    setMediaAssets(store.getAllMediaAssets());
   };
 
   useEffect(() => {

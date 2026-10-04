@@ -1,12 +1,14 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { User, Post, Reel } from '@/lib/types';
 import { GlassAvatar } from '../glass/GlassAvatar';
 import { GlassButton } from '../glass/GlassButton';
 import { GlassModal } from '../glass/GlassModal';
+import { PostCard } from '../feed/PostCard';
+import { store } from '@/lib/store';
 import {
   Grid,
   Film,
@@ -21,8 +23,10 @@ import {
   Link as LinkIcon,
   Camera,
   Play,
-  Cloud
+  Cloud,
+  ArrowLeft
 } from 'lucide-react';
+import { getVideoPosterUrl } from '@/lib/cloudinary';
 
 interface ProfileViewProps {
   user: User;
@@ -45,10 +49,155 @@ export function ProfileView({
 }: ProfileViewProps) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<'posts' | 'reels' | 'saved'>('posts');
-  const [isFollowing, setIsFollowing] = useState(false);
-  const [selectedPost, setSelectedPost] = useState<Post | null>(null);
-  const [selectedReel, setSelectedReel] = useState<Reel | null>(null);
+  const [viewMode, setViewMode] = useState<'grid' | 'feed'>('grid');
+  const [targetPostId, setTargetPostId] = useState<string | null>(null);
+  const [isFollowing, setIsFollowing] = useState<boolean>(() =>
+    typeof store.isFollowing === 'function' ? store.isFollowing(user.id) : false
+  );
+  const [posts, setPosts] = useState<Post[]>(userPosts);
+  const [savedPosts, setSavedPosts] = useState<Post[]>(bookmarkedPosts);
   const isOwnProfile = user.id === currentUser.id;
+
+  useEffect(() => {
+    if (typeof store.isFollowing === 'function') {
+      setIsFollowing(store.isFollowing(user.id));
+    }
+    const handleUpdate = () => {
+      if (typeof store.isFollowing === 'function') {
+        setIsFollowing(store.isFollowing(user.id));
+      }
+    };
+    window.addEventListener('beesocial:store_updated', handleUpdate);
+    return () => window.removeEventListener('beesocial:store_updated', handleUpdate);
+  }, [user.id]);
+
+  useEffect(() => {
+    setPosts(userPosts);
+  }, [userPosts]);
+
+  useEffect(() => {
+    setSavedPosts(bookmarkedPosts);
+  }, [bookmarkedPosts]);
+
+  // DSA Helper: Convert video Reel to full Post structure in O(1) time
+  const reelToPost = (reel: Reel): Post => ({
+    id: reel.postId || `post_${reel.id}`,
+    userId: reel.userId,
+    user: reel.user,
+    caption: reel.caption || '',
+    location: 'Location Reel',
+    visibility: 'public',
+    isReel: true,
+    media: [
+      {
+        id: `media_${reel.id}`,
+        userId: reel.userId,
+        postId: reel.postId || `post_${reel.id}`,
+        assetId: `cld_${reel.id}`,
+        publicId: `mediagram/reels/${reel.id}`,
+        resourceType: 'video' as const,
+        format: 'mp4',
+        width: 1080,
+        height: 1920,
+        duration: reel.duration,
+        bytes: 8500000,
+        originalUrl: reel.videoUrl,
+        thumbnailUrl: reel.posterUrl,
+        optimizedUrl: reel.videoUrl,
+        folder: 'mediagram/reels',
+        tags: ['reel', 'video'],
+        createdAt: reel.createdAt,
+      },
+    ],
+    likesCount: reel.likesCount,
+    commentsCount: reel.commentsCount,
+    sharesCount: reel.sharesCount,
+    isLiked: reel.isLiked,
+    isBookmarked: reel.isBookmarked,
+    tags: ['reel', 'video'],
+    comments: [],
+    createdAt: reel.createdAt,
+  });
+
+  // Dynamic feed posts depending on current tab
+  const feedPosts: Post[] = useMemo(() => {
+    if (activeTab === 'reels') {
+      return userReels.map((reel) => {
+        const found = posts.find((p) => p.id === reel.postId);
+        return found || reelToPost(reel);
+      });
+    }
+    if (activeTab === 'saved') {
+      return savedPosts;
+    }
+    return posts;
+  }, [activeTab, posts, userReels, savedPosts]);
+
+  const handlePostClick = (postId: string) => {
+    setTargetPostId(postId);
+    setViewMode('feed');
+  };
+
+  const handleReelClick = (reel: Reel) => {
+    const matched = posts.find((p) => p.id === reel.postId);
+    const postToOpen = matched || reelToPost(reel);
+    setTargetPostId(postToOpen.id);
+    setViewMode('feed');
+  };
+
+  const handlePostLike = (postId: string) => {
+    onToggleLike(postId);
+    setPosts((prev) =>
+      prev.map((p) => {
+        if (p.id === postId) {
+          const isLiked = !p.isLiked;
+          return { ...p, isLiked, likesCount: p.likesCount + (isLiked ? 1 : -1) };
+        }
+        return p;
+      })
+    );
+  };
+
+  const handlePostBookmark = (postId: string) => {
+    const isBookmarked = store.toggleBookmarkPost(postId);
+    setPosts((prev) =>
+      prev.map((p) => (p.id === postId ? { ...p, isBookmarked } : p))
+    );
+    window.dispatchEvent(new CustomEvent('beesocial:store_updated'));
+  };
+
+  const handlePostComment = (postId: string, content: string) => {
+    const newComment = store.addComment(postId, content);
+    setPosts((prev) =>
+      prev.map((p) => {
+        if (p.id === postId) {
+          return {
+            ...p,
+            commentsCount: p.commentsCount + 1,
+            comments: [
+              ...(p.comments || []),
+              newComment,
+            ],
+          };
+        }
+        return p;
+      })
+    );
+    window.dispatchEvent(new CustomEvent('beesocial:store_updated'));
+  };
+
+  // Smoothly scroll to the clicked target post in feed view
+  useEffect(() => {
+    if (viewMode === 'feed' && targetPostId) {
+      const timer = setTimeout(() => {
+        const el = document.getElementById(`profile-post-${targetPostId}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 70);
+      return () => clearTimeout(timer);
+    }
+  }, [viewMode, targetPostId]);
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-16">
@@ -105,7 +254,10 @@ export function ProfileView({
                   <GlassButton
                     size="sm"
                     variant={isFollowing ? 'secondary' : 'primary'}
-                    onClick={() => setIsFollowing(!isFollowing)}
+                    onClick={() => {
+                      const res = store.toggleFollow(user.id);
+                      setIsFollowing(res);
+                    }}
                   >
                     {isFollowing ? 'Following' : 'Follow'}
                   </GlassButton>
@@ -164,338 +316,317 @@ export function ProfileView({
 
       {/* Profile Highlights Row */}
       <div className="flex items-center gap-6 overflow-x-auto px-2 scrollbar-none">
-        {['Tokyo 🌃', 'Reflections ✨', 'Gear 🎥', 'Presets 🎨'].map((highlight, i) => (
-          <div key={highlight} className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer group">
+        {[
+          { name: 'Tokyo 🌃', img: '/pics/pic_17.jpg' },
+          { name: 'Reflections ✨', img: '/pics/pic_04.jpg' },
+          { name: 'Gear 🎥', img: '/pics/pic_11.jpg' },
+          { name: 'Presets 🎨', img: '/pics/pic_16.jpg' },
+        ].map((highlight) => (
+          <div key={highlight.name} className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer group">
             <div className="w-16 h-16 rounded-full p-[2px] bg-white/20 group-hover:bg-amber-400/80 transition-colors">
               <div className="w-full h-full rounded-full bg-black/60 overflow-hidden border-2 border-[#06070c]">
                 <img
-                  src={`https://images.unsplash.com/photo-${1500000000000 + i * 1000000}?w=120&h=120&fit=crop`}
-                  alt={highlight}
+                  src={highlight.img}
+                  alt={highlight.name}
                   className="w-full h-full object-cover group-hover:scale-110 transition-transform"
                 />
               </div>
             </div>
-            <span className="text-[11px] font-medium text-white/70">{highlight}</span>
+            <span className="text-[11px] font-medium text-white/70">{highlight.name}</span>
           </div>
         ))}
       </div>
 
-      {/* Tabs Header */}
-      <div className="flex items-center justify-center border-t border-white/10 pt-2 gap-8 text-xs font-bold uppercase tracking-wider">
-        <button
-          onClick={() => setActiveTab('posts')}
-          className={`flex items-center gap-2 py-3 border-t-2 transition-all cursor-pointer ${
-            activeTab === 'posts'
-              ? 'border-amber-400 text-white'
-              : 'border-transparent text-white/40 hover:text-white'
-          }`}
-        >
-          <Grid className="w-4 h-4" />
-          <span>Posts</span>
-        </button>
+      {/* Conditional: Scrollable Feed View vs Standard 3-Column Profile Grid */}
+      {viewMode === 'feed' ? (
+        <div className="space-y-6 animate-in fade-in duration-200">
+          {/* Top Sticky Navigation Bar */}
+          <div className="sticky top-2 z-30 p-3.5 glass-card rounded-2xl border border-white/20 backdrop-blur-xl flex items-center justify-between shadow-2xl">
+            <button
+              onClick={() => {
+                setViewMode('grid');
+                setTargetPostId(null);
+              }}
+              className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-white/10 hover:bg-amber-400 hover:text-black text-white font-bold text-xs transition-all cursor-pointer hover:scale-105 active:scale-95 border border-white/15"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>Back to Profile Grid</span>
+            </button>
 
-        <button
-          onClick={() => setActiveTab('reels')}
-          className={`flex items-center gap-2 py-3 border-t-2 transition-all cursor-pointer ${
-            activeTab === 'reels'
-              ? 'border-purple-400 text-white'
-              : 'border-transparent text-white/40 hover:text-white'
-          }`}
-        >
-          <Film className="w-4 h-4" />
-          <span>Reels</span>
-        </button>
+            <div className="hidden sm:flex items-center gap-2 text-xs">
+              <span className="text-white/50">Viewing feed of:</span>
+              <span className="font-extrabold text-amber-300">@{user.username}</span>
+              <span className="text-white/30">•</span>
+              <span className="text-white/70 font-medium">{feedPosts.length} posts</span>
+            </div>
 
-        {isOwnProfile && (
-          <button
-            onClick={() => setActiveTab('saved')}
-            className={`flex items-center gap-2 py-3 border-t-2 transition-all cursor-pointer ${
-              activeTab === 'saved'
-                ? 'border-cyan-400 text-white'
-                : 'border-transparent text-white/40 hover:text-white'
-            }`}
-          >
-            <Bookmark className="w-4 h-4" />
-            <span>Saved</span>
-          </button>
-        )}
-      </div>
+            <button
+              onClick={() => {
+                setViewMode('grid');
+                setTargetPostId(null);
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-xs transition-colors cursor-pointer border border-white/10"
+              title="Return to Grid Layout"
+            >
+              <Grid className="w-3.5 h-3.5" />
+              <span>Grid View</span>
+            </button>
+          </div>
 
-      {/* 3-Column Media Grid */}
-      <div className="grid grid-cols-3 gap-1 md:gap-4">
-        {activeTab === 'posts' && (
-          userPosts.length > 0 ? (
-            userPosts.map((post) => {
-              const firstMedia = post.media[0];
-              const isVideo = firstMedia?.resourceType === 'video' || post.isReel;
-              return (
+          {/* Full Scrollable Feed of user's posts (just like home page) */}
+          <div className="max-w-[540px] mx-auto space-y-6">
+            {feedPosts.length > 0 ? (
+              feedPosts.map((post) => (
                 <div
                   key={post.id}
-                  onClick={() => setSelectedPost(post)}
-                  className="relative aspect-square group overflow-hidden rounded-xl bg-black/40 cursor-pointer border border-white/5 hover:border-amber-400/40 transition-colors"
+                  id={`profile-post-${post.id}`}
+                  className="scroll-mt-24 transition-all"
                 >
-                  {isVideo ? (
-                    <video
-                      src={`${firstMedia?.optimizedUrl || firstMedia?.originalUrl}#t=0.001`}
-                      preload="metadata"
-                      muted
-                      playsInline
-                      className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105 pointer-events-none"
-                    />
-                  ) : (
-                    <img
-                      src={firstMedia?.thumbnailUrl || firstMedia?.originalUrl}
-                      alt={post.caption}
-                      className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                    />
-                  )}
-
-                  {/* Indicator for video or multiple photos */}
-                  {isVideo ? (
-                    <div className="absolute top-2 right-2 p-1.5 rounded-lg bg-black/70 text-amber-300 backdrop-blur-sm">
-                      <Film className="w-3.5 h-3.5" />
-                    </div>
-                  ) : post.media.length > 1 ? (
-                    <div className="absolute top-2 right-2 p-1.5 rounded-lg bg-black/70 text-white backdrop-blur-sm">
-                      <Layers className="w-3.5 h-3.5" />
-                    </div>
-                  ) : null}
-
-                  {/* Hover Overlay with Likes & Comments */}
-                  <div className="absolute inset-0 bg-black/55 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-6 text-white font-bold text-sm backdrop-blur-[2px]">
-                    <div className="flex items-center gap-1.5">
-                      <Heart className="w-5 h-5 fill-rose-500 text-rose-500" />
-                      <span>{post.likesCount}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <MessageCircle className="w-5 h-5 fill-amber-400 text-amber-400" />
-                      <span>{post.commentsCount}</span>
-                    </div>
-                  </div>
-                </div>
-              );
-            })
-          ) : (
-            <div className="col-span-3 py-16 flex flex-col items-center justify-center text-center">
-              <div className="w-16 h-16 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white/40 mb-3">
-                <Camera className="w-7 h-7" />
-              </div>
-              <p className="text-sm font-semibold text-white/80">No posts shared yet</p>
-              <p className="text-xs text-white/40 mt-1 max-w-xs">
-                When @{user.username} shares photos or feed updates, they will appear here.
-              </p>
-            </div>
-          )
-        )}
-
-        {activeTab === 'reels' && (
-          userReels.length > 0 ? (
-            userReels.map((reel) => (
-              <div
-                key={reel.id}
-                onClick={() => setSelectedReel(reel)}
-                className="relative aspect-[9/16] group overflow-hidden rounded-xl bg-black/40 cursor-pointer border border-white/5 hover:border-purple-400/50 transition-colors"
-              >
-                <video
-                  src={`${reel.videoUrl}#t=0.001`}
-                  preload="metadata"
-                  muted
-                  playsInline
-                  className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105 pointer-events-none"
-                />
-                <div className="absolute top-2 right-2 p-1.5 rounded-lg bg-black/70 text-purple-300 backdrop-blur-sm">
-                  <Film className="w-3.5 h-3.5" />
-                </div>
-                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                  <div className="w-10 h-10 rounded-full bg-purple-500/80 flex items-center justify-center text-white shadow-lg">
-                    <Play className="w-5 h-5 fill-white ml-0.5" />
-                  </div>
-                </div>
-                <div className="absolute bottom-2 left-2 flex items-center gap-1.5 text-white text-xs font-bold drop-shadow bg-black/50 px-2 py-0.5 rounded-md backdrop-blur-sm">
-                  <Heart className="w-3 h-3 fill-rose-500 text-rose-500" />
-                  <span>{reel.likesCount}</span>
-                </div>
-              </div>
-            ))
-          ) : (
-            <div className="col-span-3 py-16 flex flex-col items-center justify-center text-center">
-              <div className="w-16 h-16 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white/40 mb-3">
-                <Film className="w-7 h-7" />
-              </div>
-              <p className="text-sm font-semibold text-white/80">No reels created yet</p>
-              <p className="text-xs text-white/40 mt-1 max-w-xs">
-                When @{user.username} publishes vertical video reels, they will appear here.
-              </p>
-            </div>
-          )
-        )}
-
-        {activeTab === 'saved' && (
-          bookmarkedPosts.length > 0 ? (
-            bookmarkedPosts.map((post) => (
-              <div
-                key={post.id}
-                onClick={() => setSelectedPost(post)}
-                className="relative aspect-square group overflow-hidden rounded-xl bg-black/40 cursor-pointer border border-white/5 hover:border-cyan-400/40 transition-colors"
-              >
-              {post.isReel || post.media[0]?.resourceType === 'video' ? (
-                <video
-                  src={`${post.media[0]?.optimizedUrl || post.media[0]?.originalUrl}#t=0.001`}
-                  preload="metadata"
-                  muted
-                  playsInline
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform pointer-events-none"
-                />
-              ) : (
-                <img
-                  src={post.media[0]?.thumbnailUrl || post.media[0]?.originalUrl}
-                  alt={post.caption}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                />
-              )}
-            </div>
-            ))
-          ) : (
-            <div className="col-span-3 py-16 flex flex-col items-center justify-center text-center">
-              <div className="w-16 h-16 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white/40 mb-3">
-                <Bookmark className="w-7 h-7" />
-              </div>
-              <p className="text-sm font-semibold text-white/80">Save photos and videos</p>
-              <p className="text-xs text-white/40 mt-1 max-w-xs">
-                Save posts to watch or revisit them anytime. Only you can see what you've saved.
-              </p>
-            </div>
-          )
-        )}
-      </div>
-
-      {/* Selected Reel Modal Player */}
-      {selectedReel && (
-        <GlassModal
-          isOpen={!!selectedReel}
-          onClose={() => setSelectedReel(null)}
-          title={`Reel by @${user.username}`}
-          maxWidth="2xl"
-        >
-          <div className="space-y-4">
-            <div className="relative aspect-[9/16] max-h-[520px] mx-auto rounded-2xl overflow-hidden bg-black border border-white/20 shadow-2xl flex items-center justify-center">
-              <video
-                src={selectedReel.videoUrl}
-                poster={selectedReel.posterUrl}
-                controls
-                autoPlay
-                loop
-                playsInline
-                className="w-full h-full object-cover"
-              />
-            </div>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <GlassAvatar
-                    src={user.avatarUrl}
-                    name={user.name}
-                    size="sm"
-                    isVerified={user.isVerified}
+                  <PostCard
+                    post={post}
+                    currentUser={currentUser}
+                    onToggleLike={handlePostLike}
+                    onToggleBookmark={handlePostBookmark}
+                    onAddComment={handlePostComment}
                   />
-                  <div>
-                    <p className="text-xs font-bold text-white">@{user.username}</p>
-                    <p className="text-[10px] text-white/50">{selectedReel.audioTrackTitle}</p>
-                  </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-xs text-white/70 flex items-center gap-1 font-semibold">
-                    <Heart className="w-4 h-4 text-rose-500 fill-rose-500" />
-                    {selectedReel.likesCount}
-                  </span>
-                  <Link href="/reels">
-                    <button className="px-3 py-1.5 rounded-xl bg-purple-500 hover:bg-purple-600 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer">
-                      <Film className="w-3.5 h-3.5" />
-                      Open Fullscreen Reels
-                    </button>
-                  </Link>
-                </div>
+              ))
+            ) : (
+              <div className="py-16 text-center text-white/50 text-xs">
+                No posts shared by @{user.username} yet.
               </div>
-              <p className="text-xs text-white/90 leading-relaxed bg-white/5 p-3 rounded-xl border border-white/10">
-                {selectedReel.caption}
-              </p>
-            </div>
+            )}
           </div>
-        </GlassModal>
-      )}
+        </div>
+      ) : (
+        <>
+          {/* Tabs Header */}
+          <div className="flex items-center justify-center border-t border-white/10 pt-2 gap-8 text-xs font-bold uppercase tracking-wider">
+            <button
+              onClick={() => setActiveTab('posts')}
+              className={`flex items-center gap-2 py-3 border-t-2 transition-all cursor-pointer ${
+                activeTab === 'posts'
+                  ? 'border-amber-400 text-white'
+                  : 'border-transparent text-white/40 hover:text-white'
+              }`}
+            >
+              <Grid className="w-4 h-4" />
+              <span>Posts</span>
+            </button>
 
-      {/* Selected Post Modal Viewer */}
-      {selectedPost && (
-        <GlassModal
-          isOpen={!!selectedPost}
-          onClose={() => setSelectedPost(null)}
-          title={`Post by @${user.username}`}
-          maxWidth="4xl"
-        >
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="relative aspect-square rounded-2xl overflow-hidden bg-black/80 flex items-center justify-center border border-white/10">
-              {selectedPost.media[0]?.resourceType === 'video' || selectedPost.isReel ? (
-                <video
-                  src={selectedPost.media[0]?.optimizedUrl || selectedPost.media[0]?.originalUrl}
-                  controls
-                  autoPlay
-                  loop
-                  playsInline
-                  className="w-full h-full object-contain"
-                />
-              ) : (
-                <img
-                  src={selectedPost.media[0]?.optimizedUrl || selectedPost.media[0]?.originalUrl}
-                  alt={selectedPost.caption}
-                  className="w-full h-full object-cover"
-                />
-              )}
-            </div>
-            <div className="flex flex-col justify-between space-y-4">
-              <div className="space-y-3">
-                <div className="flex items-center gap-2.5 pb-3 border-b border-white/10">
-                  <GlassAvatar
-                    src={user.avatarUrl}
-                    name={user.name}
-                    size="sm"
-                    isVerified={user.isVerified}
-                  />
-                  <div>
-                    <p className="text-xs font-bold text-white">{user.name}</p>
-                    <p className="text-[10px] text-white/50">@{user.username}</p>
-                  </div>
-                </div>
-                <p className="text-xs text-white/90 leading-relaxed max-h-48 overflow-y-auto">
-                  {selectedPost.caption}
-                </p>
-                {selectedPost.tags && selectedPost.tags.length > 0 && (
-                  <div className="flex flex-wrap gap-1">
-                    {selectedPost.tags.map((tag) => (
-                      <span key={tag} className="text-[10px] text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded">
-                        #{tag}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-              <div className="pt-3 border-t border-white/10 flex items-center justify-between text-xs text-white/60">
-                <div className="flex items-center gap-3">
-                  <span className="flex items-center gap-1 text-white font-semibold">
-                    <Heart className="w-4 h-4 text-rose-500 fill-rose-500" />
-                    {selectedPost.likesCount} likes
-                  </span>
-                  <span className="flex items-center gap-1 text-white/70">
-                    <MessageCircle className="w-4 h-4 text-amber-400" />
-                    {selectedPost.commentsCount} comments
-                  </span>
-                </div>
-                <span className="text-[10px] text-white/40">
-                  {new Date(selectedPost.createdAt).toLocaleDateString()}
-                </span>
-              </div>
-            </div>
+            <button
+              onClick={() => setActiveTab('reels')}
+              className={`flex items-center gap-2 py-3 border-t-2 transition-all cursor-pointer ${
+                activeTab === 'reels'
+                  ? 'border-purple-400 text-white'
+                  : 'border-transparent text-white/40 hover:text-white'
+              }`}
+            >
+              <Film className="w-4 h-4" />
+              <span>Reels</span>
+            </button>
+
+            {isOwnProfile && (
+              <button
+                onClick={() => setActiveTab('saved')}
+                className={`flex items-center gap-2 py-3 border-t-2 transition-all cursor-pointer ${
+                  activeTab === 'saved'
+                    ? 'border-cyan-400 text-white'
+                    : 'border-transparent text-white/40 hover:text-white'
+                }`}
+              >
+                <Bookmark className="w-4 h-4" />
+                <span>Saved</span>
+              </button>
+            )}
           </div>
-        </GlassModal>
+
+          {/* 3-Column Media Grid */}
+          <div className="grid grid-cols-3 gap-1 md:gap-4">
+            {activeTab === 'posts' && (
+              posts.length > 0 ? (
+                posts.map((post) => {
+                  const firstMedia = post.media[0];
+                  const isVideo = firstMedia?.resourceType === 'video' || post.isReel || firstMedia?.originalUrl?.toLowerCase().includes('.mp4');
+                  const posterFallback = firstMedia?.thumbnailUrl && !firstMedia.thumbnailUrl.toLowerCase().includes('.mp4')
+                    ? firstMedia.thumbnailUrl
+                    : getVideoPosterUrl(firstMedia?.originalUrl || firstMedia?.optimizedUrl || '');
+
+                  return (
+                    <div
+                      key={post.id}
+                      onClick={() => handlePostClick(post.id)}
+                      className="relative aspect-square group overflow-hidden rounded-xl bg-black/40 cursor-pointer border border-white/5 hover:border-amber-400/40 transition-colors"
+                    >
+                      {isVideo ? (
+                        <video
+                          src={firstMedia?.optimizedUrl || firstMedia?.originalUrl}
+                          poster={posterFallback}
+                          preload="metadata"
+                          muted
+                          playsInline
+                          loop
+                          onMouseEnter={(e) => e.currentTarget.play().catch(() => {})}
+                          onMouseLeave={(e) => { e.currentTarget.pause(); e.currentTarget.currentTime = 0; }}
+                          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105 pointer-events-auto"
+                        />
+                      ) : (
+                        <img
+                          src={firstMedia?.thumbnailUrl || firstMedia?.originalUrl || '/pics/pic_01.jpg'}
+                          alt={post.caption}
+                          loading="lazy"
+                          decoding="async"
+                          onError={(e) => {
+                            e.currentTarget.src = '/pics/pic_01.jpg';
+                          }}
+                          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                        />
+                      )}
+
+                      {/* Indicator for video or multiple photos */}
+                      {isVideo ? (
+                        <div className="absolute top-2 right-2 p-1.5 rounded-lg bg-black/70 text-amber-300 backdrop-blur-sm pointer-events-none">
+                          <Film className="w-3.5 h-3.5" />
+                        </div>
+                      ) : post.media.length > 1 ? (
+                        <div className="absolute top-2 right-2 p-1.5 rounded-lg bg-black/70 text-white backdrop-blur-sm pointer-events-none">
+                          <Layers className="w-3.5 h-3.5" />
+                        </div>
+                      ) : null}
+
+                      {/* Hover Overlay with Likes & Comments */}
+                      <div className="absolute inset-0 bg-black/55 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-6 text-white font-bold text-sm backdrop-blur-[2px] pointer-events-none">
+                        <div className="flex items-center gap-1.5">
+                          <Heart className="w-5 h-5 fill-rose-500 text-rose-500" />
+                          <span>{post.likesCount}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <MessageCircle className="w-5 h-5 fill-amber-400 text-amber-400" />
+                          <span>{post.commentsCount}</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="col-span-3 py-16 flex flex-col items-center justify-center text-center">
+                  <div className="w-16 h-16 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white/40 mb-3">
+                    <Camera className="w-7 h-7" />
+                  </div>
+                  <p className="text-sm font-semibold text-white/80">No posts shared yet</p>
+                  <p className="text-xs text-white/40 mt-1 max-w-xs">
+                    When @{user.username} shares photos or feed updates, they will appear here.
+                  </p>
+                </div>
+              )
+            )}
+
+            {activeTab === 'reels' && (
+              userReels.length > 0 ? (
+                userReels.map((reel) => {
+                  const reelPoster = reel.posterUrl && !reel.posterUrl.toLowerCase().includes('.mp4')
+                    ? reel.posterUrl
+                    : getVideoPosterUrl(reel.videoUrl);
+                  return (
+                    <div
+                      key={reel.id}
+                      onClick={() => handleReelClick(reel)}
+                      className="relative aspect-[9/16] group overflow-hidden rounded-xl bg-black/40 cursor-pointer border border-white/5 hover:border-purple-400/50 transition-colors"
+                    >
+                      <video
+                        src={reel.videoUrl}
+                        poster={reelPoster}
+                        preload="metadata"
+                        muted
+                        playsInline
+                        loop
+                        onMouseEnter={(e) => e.currentTarget.play().catch(() => {})}
+                        onMouseLeave={(e) => { e.currentTarget.pause(); e.currentTarget.currentTime = 0; }}
+                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105 pointer-events-auto"
+                      />
+                      <div className="absolute top-2 right-2 p-1.5 rounded-lg bg-black/70 text-purple-300 backdrop-blur-sm pointer-events-none">
+                        <Film className="w-3.5 h-3.5" />
+                      </div>
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                        <div className="w-10 h-10 rounded-full bg-purple-500/80 flex items-center justify-center text-white shadow-lg">
+                          <Play className="w-5 h-5 fill-white ml-0.5" />
+                        </div>
+                      </div>
+                      <div className="absolute bottom-2 left-2 flex items-center gap-1.5 text-white text-xs font-bold drop-shadow bg-black/50 px-2 py-0.5 rounded-md backdrop-blur-sm pointer-events-none">
+                        <Heart className="w-3 h-3 fill-rose-500 text-rose-500" />
+                        <span>{reel.likesCount}</span>
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="col-span-3 py-16 flex flex-col items-center justify-center text-center">
+                  <div className="w-16 h-16 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white/40 mb-3">
+                    <Film className="w-7 h-7" />
+                  </div>
+                  <p className="text-sm font-semibold text-white/80">No reels created yet</p>
+                  <p className="text-xs text-white/40 mt-1 max-w-xs">
+                    When @{user.username} publishes vertical video reels, they will appear here.
+                  </p>
+                </div>
+              )
+            )}
+
+            {activeTab === 'saved' && (
+              savedPosts.length > 0 ? (
+                savedPosts.map((post) => {
+                  const firstMedia = post.media[0];
+                  const isVideo = post.isReel || firstMedia?.resourceType === 'video' || firstMedia?.originalUrl?.toLowerCase().includes('.mp4');
+                  const posterFallback = firstMedia?.thumbnailUrl && !firstMedia.thumbnailUrl.toLowerCase().includes('.mp4')
+                    ? firstMedia.thumbnailUrl
+                    : getVideoPosterUrl(firstMedia?.originalUrl || firstMedia?.optimizedUrl || '');
+                  return (
+                    <div
+                      key={post.id}
+                      onClick={() => handlePostClick(post.id)}
+                      className="relative aspect-square group overflow-hidden rounded-xl bg-black/40 cursor-pointer border border-white/5 hover:border-cyan-400/40 transition-colors"
+                    >
+                      {isVideo ? (
+                        <video
+                          src={firstMedia?.optimizedUrl || firstMedia?.originalUrl}
+                          poster={posterFallback}
+                          preload="metadata"
+                          muted
+                          playsInline
+                          loop
+                          onMouseEnter={(e) => e.currentTarget.play().catch(() => {})}
+                          onMouseLeave={(e) => { e.currentTarget.pause(); e.currentTarget.currentTime = 0; }}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform pointer-events-auto"
+                        />
+                      ) : (
+                        <img
+                          src={firstMedia?.thumbnailUrl || firstMedia?.originalUrl || '/pics/pic_01.jpg'}
+                          alt={post.caption}
+                          loading="lazy"
+                          decoding="async"
+                          onError={(e) => {
+                            e.currentTarget.src = '/pics/pic_01.jpg';
+                          }}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                        />
+                      )}
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="col-span-3 py-16 flex flex-col items-center justify-center text-center">
+                  <div className="w-16 h-16 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white/40 mb-3">
+                    <Bookmark className="w-7 h-7" />
+                  </div>
+                  <p className="text-sm font-semibold text-white/80">Save photos and videos</p>
+                  <p className="text-xs text-white/40 mt-1 max-w-xs">
+                    Save posts to watch or revisit them anytime. Only you can see what you've saved.
+                  </p>
+                </div>
+              )
+            )}
+          </div>
+        </>
       )}
     </div>
   );

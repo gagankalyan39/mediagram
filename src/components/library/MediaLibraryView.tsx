@@ -38,14 +38,18 @@ export function MediaLibraryView({
   const [search, setSearch] = useState('');
   const [selectedAsset, setSelectedAsset] = useState<MediaAsset | null>(null);
 
-  const filtered = mediaAssets.filter((m) => {
-    const matchesType = filterType === 'all' || m.resourceType === filterType;
-    const matchesSearch =
-      m.publicId?.toLowerCase().includes(search.toLowerCase()) ||
-      m.folder?.toLowerCase().includes(search.toLowerCase()) ||
-      m.tags?.some((t) => t.toLowerCase().includes(search.toLowerCase()));
-    return matchesType && matchesSearch;
-  });
+  const filtered = React.useMemo(() => {
+    const s = search.toLowerCase().trim();
+    return mediaAssets.filter((m) => {
+      const matchesType = filterType === 'all' || m.resourceType === filterType;
+      const matchesSearch =
+        !s ||
+        m.publicId?.toLowerCase().includes(s) ||
+        m.folder?.toLowerCase().includes(s) ||
+        m.tags?.some((t) => t.toLowerCase().includes(s));
+      return matchesType && matchesSearch;
+    });
+  }, [mediaAssets, filterType, search]);
 
   const [isMounted, setIsMounted] = useState(false);
   
@@ -156,7 +160,8 @@ export function MediaLibraryView({
               <div className="relative aspect-square rounded-xl overflow-hidden bg-black/60">
                 {asset.resourceType === 'video' ? (
                   <video
-                    src={`${asset.optimizedUrl || asset.originalUrl}#t=0.001`}
+                    src={asset.optimizedUrl || asset.originalUrl}
+                    poster={asset.thumbnailUrl && !asset.thumbnailUrl.toLowerCase().includes('.mp4') ? asset.thumbnailUrl : '/pics/pic_01.jpg'}
                     preload="metadata"
                     muted
                     playsInline
@@ -164,8 +169,11 @@ export function MediaLibraryView({
                   />
                 ) : (
                   <img
-                    src={asset.thumbnailUrl || asset.originalUrl}
+                    src={asset.thumbnailUrl || asset.originalUrl || '/pics/pic_01.jpg'}
                     alt={asset.publicId}
+                    loading="lazy"
+                    decoding="async"
+                    onError={(e) => { e.currentTarget.src = '/pics/pic_01.jpg'; }}
                     className="w-full h-full object-cover transition-transform group-hover:scale-105"
                   />
                 )}
@@ -205,7 +213,8 @@ export function MediaLibraryView({
                   <td className="p-3">
                     {asset.resourceType === 'video' ? (
                       <video
-                        src={`${asset.optimizedUrl || asset.originalUrl}#t=0.001`}
+                        src={asset.optimizedUrl || asset.originalUrl}
+                        poster={asset.thumbnailUrl && !asset.thumbnailUrl.toLowerCase().includes('.mp4') ? asset.thumbnailUrl : '/pics/pic_01.jpg'}
                         preload="metadata"
                         muted
                         playsInline
@@ -213,8 +222,11 @@ export function MediaLibraryView({
                       />
                     ) : (
                       <img
-                        src={asset.thumbnailUrl || asset.originalUrl}
+                        src={asset.thumbnailUrl || asset.originalUrl || '/pics/pic_01.jpg'}
                         alt={asset.publicId}
+                        loading="lazy"
+                        decoding="async"
+                        onError={(e) => { e.currentTarget.src = '/pics/pic_01.jpg'; }}
                         className="w-10 h-10 rounded-lg object-cover"
                       />
                     )}

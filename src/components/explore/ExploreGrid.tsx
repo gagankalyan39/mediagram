@@ -7,6 +7,7 @@ import { GlassInput } from '../glass/GlassInput';
 import { GlassAvatar } from '../glass/GlassAvatar';
 import { store } from '@/lib/store';
 import Link from 'next/link';
+import { getVideoPosterUrl } from '@/lib/cloudinary';
 
 interface ExploreGridProps {
   posts: Post[];
@@ -18,32 +19,30 @@ export function ExploreGrid({ posts, onSelectPost }: ExploreGridProps) {
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [activeSearchFilter, setActiveSearchFilter] = useState<'all' | 'accounts' | 'videos'>('all');
 
-  const publicUsers: User[] = store.getPublicUsers();
   const trendingTags = ['tokyo', 'cyberpunk', 'glassmorphism', 'aerialvideo', 'surfing', 'mountains', 'cinema'];
 
-  // Search filtered accounts from 1,000+ public users
-  const matchedUsers = publicUsers.filter(
-    (u) =>
-      !search ||
-      u.username.toLowerCase().includes(search.toLowerCase()) ||
-      u.name.toLowerCase().includes(search.toLowerCase()) ||
-      (u.bio && u.bio.toLowerCase().includes(search.toLowerCase())) ||
-      (u.interestTags && u.interestTags.some((t) => t.toLowerCase().includes(search.toLowerCase())))
-  ).slice(0, 36);
+  // Fast memoized search for accounts
+  const matchedUsers = React.useMemo(() => {
+    if (activeSearchFilter !== 'accounts' && !search.trim()) return [];
+    return store.searchUsers(search, 24);
+  }, [search, activeSearchFilter]);
 
-  // Search filtered posts
-  const filteredPosts = posts.filter((p) => {
-    const matchesSearch =
-      !search ||
-      p.caption.toLowerCase().includes(search.toLowerCase()) ||
-      p.user.username.toLowerCase().includes(search.toLowerCase()) ||
-      p.tags.some((t) => t.toLowerCase().includes(search.toLowerCase()));
+  // Fast memoized search for posts
+  const filteredPosts = React.useMemo(() => {
+    const s = search.toLowerCase().trim();
+    return posts.filter((p) => {
+      const matchesSearch =
+        !s ||
+        p.caption.toLowerCase().includes(s) ||
+        p.user.username.toLowerCase().includes(s) ||
+        p.tags.some((t) => t.toLowerCase().includes(s));
 
-    const matchesTag = !selectedTag || p.tags.includes(selectedTag);
-    const matchesVideoOnly = activeSearchFilter !== 'videos' || p.isReel || p.media[0]?.resourceType === 'video';
+      const matchesTag = !selectedTag || p.tags.includes(selectedTag);
+      const matchesVideoOnly = activeSearchFilter !== 'videos' || p.isReel || p.media[0]?.resourceType === 'video';
 
-    return matchesSearch && matchesTag && matchesVideoOnly;
-  });
+      return matchesSearch && matchesTag && matchesVideoOnly;
+    });
+  }, [posts, search, selectedTag, activeSearchFilter]);
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 pb-16">
@@ -160,16 +159,23 @@ export function ExploreGrid({ posts, onSelectPost }: ExploreGridProps) {
                 {/* Media Image / Video Thumbnail */}
                 {isVideo ? (
                   <video
-                    src={`${media?.optimizedUrl || media?.originalUrl}#t=0.001`}
+                    src={media?.optimizedUrl || media?.originalUrl}
+                    poster={media?.thumbnailUrl && !media.thumbnailUrl.toLowerCase().includes('.mp4') ? media.thumbnailUrl : getVideoPosterUrl(media?.originalUrl || '')}
                     preload="metadata"
                     muted
                     playsInline
-                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105 pointer-events-none"
+                    loop
+                    onMouseEnter={(e) => e.currentTarget.play().catch(() => {})}
+                    onMouseLeave={(e) => { e.currentTarget.pause(); e.currentTarget.currentTime = 0; }}
+                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105 pointer-events-auto"
                   />
                 ) : (
                   <img
-                    src={media?.thumbnailUrl || media?.originalUrl}
+                    src={media?.thumbnailUrl || media?.originalUrl || '/pics/pic_01.jpg'}
                     alt={post.caption}
+                    loading="lazy"
+                    decoding="async"
+                    onError={(e) => { e.currentTarget.src = '/pics/pic_01.jpg'; }}
                     className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                   />
                 )}

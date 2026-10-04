@@ -12,7 +12,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en" className="dark" data-scroll-behavior="smooth" suppressHydrationWarning>
       <body className="min-h-screen bg-[#06070c] text-[#f3f4f6] selection:bg-amber-400 selection:text-black">
         {/* Ambient background glows */}
         <div className="ambient-glow" />

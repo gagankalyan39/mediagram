@@ -96,7 +96,7 @@ export function AppShell({ children }: AppShellProps) {
         {/* Top Mobile Bar */}
         <header className="md:hidden glass sticky top-0 z-30 px-4 py-3 border-b border-white/10 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
-            <img src="/logo.jpg" alt="Logo" className="w-6 h-6 rounded-md object-cover" />
+            <img src="/logo.jpg" alt="Logo" decoding="async" className="w-6 h-6 rounded-md object-cover" />
             <span className="font-black text-lg bg-gradient-to-r from-amber-200 to-pink-400 bg-clip-text text-transparent">
               MediaGram
             </span>
@@ -145,7 +145,7 @@ export function AppShell({ children }: AppShellProps) {
         </header>
 
         {/* Page Children */}
-        <div className="flex-1 p-4 md:p-8 max-w-7xl mx-auto w-full pb-20 md:pb-8">
+        <div className="flex-1 p-4 md:p-8 max-w-7xl mx-auto w-full pb-28 md:pb-8">
           {/* Suspended User Warning Banner */}
           {currentUser.status === 'suspended' && (
             <div className="mb-6 p-4 rounded-2xl glass border border-rose-500/50 bg-rose-950/40 text-rose-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-shake">
@@ -169,38 +169,54 @@ export function AppShell({ children }: AppShellProps) {
         </div>
 
         {/* Mobile Bottom Navigation */}
-        <nav className="md:hidden glass fixed bottom-0 inset-x-0 z-30 border-t border-white/10 px-4 py-2.5 flex items-center justify-around">
-          <Link href="/" className={`p-2 ${pathname === '/' ? 'text-amber-400' : 'text-white/60'}`}>
+        <nav className="md:hidden glass fixed bottom-0 inset-x-0 z-40 border-t border-white/10 px-2 py-2 pb-safe flex items-center justify-around touch-manipulation select-none backdrop-blur-xl bg-[#0b0d14]/95">
+          <Link
+            href="/"
+            className={`min-w-[44px] min-h-[44px] flex items-center justify-center p-2 rounded-xl active:scale-95 transition-all touch-manipulation ${
+              pathname === '/' ? 'text-amber-400' : 'text-white/60'
+            }`}
+          >
             <Home className="w-5 h-5" />
           </Link>
           <button
+            type="button"
             onClick={() => setIsSearchModalOpen(true)}
-            className="p-2 text-white/60 hover:text-amber-400 transition-colors"
+            className="min-w-[44px] min-h-[44px] flex items-center justify-center p-2 rounded-xl text-white/60 hover:text-amber-400 active:scale-95 transition-all touch-manipulation cursor-pointer"
             title="Search Accounts"
           >
             <Search className="w-5 h-5" />
           </button>
           <button
+            type="button"
             onClick={() => setIsCreateModalOpen(true)}
-            className="p-2 rounded-xl bg-gradient-to-tr from-amber-400 to-pink-500 text-black shadow-lg"
+            className="min-w-[44px] min-h-[44px] flex items-center justify-center p-2.5 rounded-xl bg-gradient-to-tr from-amber-400 to-pink-500 text-black shadow-lg shadow-amber-400/20 active:scale-95 transition-all touch-manipulation cursor-pointer"
           >
             <PlusSquare className="w-5 h-5" />
           </button>
-          <Link href="/reels" className={`p-2 ${pathname === '/reels' ? 'text-purple-400' : 'text-white/60'}`}>
+          <Link
+            href="/reels"
+            className={`min-w-[44px] min-h-[44px] flex items-center justify-center p-2 rounded-xl active:scale-95 transition-all touch-manipulation ${
+              pathname === '/reels' ? 'text-purple-400' : 'text-white/60'
+            }`}
+          >
             <Film className="w-5 h-5" />
           </Link>
           <Link
             href="/messages"
-            className={`p-2 relative ${pathname === '/messages' ? 'text-amber-400' : 'text-white/60'}`}
+            className={`min-w-[44px] min-h-[44px] flex items-center justify-center p-2 relative rounded-xl active:scale-95 transition-all touch-manipulation ${
+              pathname === '/messages' ? 'text-amber-400' : 'text-white/60'
+            }`}
           >
             <MessageSquare className="w-5 h-5" />
             {unreadCount > 0 && (
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-amber-400 shadow-md shadow-amber-400/50" />
+              <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-amber-400 shadow-md shadow-amber-400/50" />
             )}
           </Link>
           <Link
             href={`/profile/${currentUser.username}`}
-            className={`p-2 ${pathname.startsWith('/profile') ? 'text-amber-400' : 'text-white/60'}`}
+            className={`min-w-[44px] min-h-[44px] flex items-center justify-center p-2 rounded-xl active:scale-95 transition-all touch-manipulation ${
+              pathname.startsWith('/profile') ? 'text-amber-400' : 'text-white/60'
+            }`}
           >
             <GlassAvatar
               src={currentUser.avatarUrl}

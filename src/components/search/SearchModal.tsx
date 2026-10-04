@@ -247,17 +247,22 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
                 >
                   <div className="w-16 h-16 shrink-0 rounded-xl overflow-hidden bg-black/50 border border-white/10 mr-3">
                     {post.media[0] && (
-                      post.media[0].resourceType === 'video' ? (
+                      post.media[0].resourceType === 'video' || post.isReel ? (
                         <video
-                          src={`${post.media[0].optimizedUrl || post.media[0].originalUrl}#t=0.001`}
+                          src={post.media[0].optimizedUrl || post.media[0].originalUrl}
+                          poster={post.media[0].thumbnailUrl && !post.media[0].thumbnailUrl.toLowerCase().includes('.mp4') ? post.media[0].thumbnailUrl : '/pics/pic_01.jpg'}
                           className="w-full h-full object-cover"
+                          preload="metadata"
                           muted
                         />
                       ) : (
                         <img
-                          src={post.media[0].thumbnailUrl || post.media[0].originalUrl}
+                          src={post.media[0].thumbnailUrl || post.media[0].originalUrl || '/pics/pic_01.jpg'}
                           className="w-full h-full object-cover"
                           alt="Post preview"
+                          loading="lazy"
+                          decoding="async"
+                          onError={(e) => { e.currentTarget.src = '/pics/pic_01.jpg'; }}
                         />
                       )
                     )}

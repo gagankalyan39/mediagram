@@ -4,9 +4,7 @@ const nextConfig: NextConfig = {
   reactStrictMode: false,
   images: {
     remotePatterns: [
-      { protocol: 'https', hostname: 'res.cloudinary.com' },
-      { protocol: 'https', hostname: 'images.unsplash.com' },
-      { protocol: 'https', hostname: 'assets.mixkit.co' },
+      { protocol: 'https', hostname: '**' },
     ],
   },
   experimental: {

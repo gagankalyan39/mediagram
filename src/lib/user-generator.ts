@@ -122,8 +122,11 @@ const INTEREST_TAG_POOLS = [
 
 export const UNIVERSAL_PASSWORD = 'password123';
 
-// Generate 1,050 rich, realistic, diverse user accounts
+let cachedUsers: User[] | null = null;
+
+// Generate 1,050 rich, realistic, diverse user accounts (memoized singleton)
 export function generateUsers(): User[] {
+  if (cachedUsers) return cachedUsers;
   const users: User[] = [];
 
   // 1. Featured Top Creator: Alex (Customer Account)
@@ -280,5 +283,6 @@ export function generateUsers(): User[] {
     createdAt: '2026-01-01T00:00:00.000Z',
   });
 
+  cachedUsers = users;
   return users;
 }

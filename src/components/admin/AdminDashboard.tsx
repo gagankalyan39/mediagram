@@ -68,6 +68,10 @@ export function AdminDashboard({
   const [feedbackMsg, setFeedbackMsg] = useState<string | null>(null);
   const [boostedTopics, setBoostedTopics] = useState<Record<string, number>>({});
 
+  const [userSearch, setUserSearch] = useState('');
+  const [userPage, setUserPage] = useState(1);
+  const USERS_PER_PAGE = 25;
+
   const showToast = (msg: string) => {
     setFeedbackMsg(msg);
     setTimeout(() => setFeedbackMsg(null), 3500);
@@ -81,26 +85,53 @@ export function AdminDashboard({
     showToast(`⚡ ML Recommendation weight boosted for #${tag}! Posts with this tag will rank higher in consumer feeds.`);
   };
 
-  const filteredMedia = mediaAssets.filter((m) => {
-    const matchesQuery =
-      m.publicId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      m.folder?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      m.tags?.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase()));
-    const matchesType = mediaTypeFilter === 'all' || m.resourceType === mediaTypeFilter;
-    return matchesQuery && matchesType;
-  });
+  const filteredMedia = React.useMemo(() => {
+    const s = searchQuery.toLowerCase().trim();
+    return mediaAssets.filter((m) => {
+      const matchesQuery =
+        !s ||
+        m.publicId?.toLowerCase().includes(s) ||
+        m.folder?.toLowerCase().includes(s) ||
+        m.tags?.some((t) => t.toLowerCase().includes(s));
+      const matchesType = mediaTypeFilter === 'all' || m.resourceType === mediaTypeFilter;
+      return matchesQuery && matchesType;
+    });
+  }, [mediaAssets, searchQuery, mediaTypeFilter]);
 
   const topicsList: TopicAnalytics[] = stats.analytics.topics || [];
-  const categories = Array.from(new Set(topicsList.map((t) => t.category || 'General')));
+  const categories = React.useMemo(() => {
+    return Array.from(new Set(topicsList.map((t) => t.category || 'General')));
+  }, [topicsList]);
 
-  const filteredTopics = topicsList.filter((t) => {
-    const matchesSearch =
-      t.tag.toLowerCase().includes(topicSearch.toLowerCase()) ||
-      (t.category && t.category.toLowerCase().includes(topicSearch.toLowerCase()));
-    const matchesCategory =
-      topicCategoryFilter === 'all' || t.category === topicCategoryFilter;
-    return matchesSearch && matchesCategory;
-  });
+  const filteredTopics = React.useMemo(() => {
+    const s = topicSearch.toLowerCase().trim();
+    return topicsList.filter((t) => {
+      const matchesSearch =
+        !s ||
+        t.tag.toLowerCase().includes(s) ||
+        (t.category && t.category.toLowerCase().includes(s));
+      const matchesCategory =
+        topicCategoryFilter === 'all' || t.category === topicCategoryFilter;
+      return matchesSearch && matchesCategory;
+    });
+  }, [topicsList, topicSearch, topicCategoryFilter]);
+
+  const filteredUsers = React.useMemo(() => {
+    const q = userSearch.toLowerCase().trim();
+    if (!q) return users;
+    return users.filter(
+      (u) =>
+        u.username.toLowerCase().includes(q) ||
+        u.name.toLowerCase().includes(q) ||
+        u.email.toLowerCase().includes(q)
+    );
+  }, [users, userSearch]);
+
+  const totalUserPages = Math.max(1, Math.ceil(filteredUsers.length / USERS_PER_PAGE));
+  const paginatedUsers = React.useMemo(() => {
+    const start = (userPage - 1) * USERS_PER_PAGE;
+    return filteredUsers.slice(start, start + USERS_PER_PAGE);
+  }, [filteredUsers, userPage]);
 
   const formatBytes = (bytes: number) => {
     if (!bytes) return '0 B';
@@ -416,19 +447,31 @@ export function AdminDashboard({
       {activeTab === 'users' && (
         <div className="space-y-4">
           <GlassCard className="p-0 overflow-hidden">
-            <div className="p-4 border-b border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+            <div className="p-4 border-b border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
               <div>
                 <h3 className="text-sm font-bold text-white flex items-center gap-2">
                   <UserX className="w-4 h-4 text-purple-400" />
                   Account Management & Suspension Control
                 </h3>
                 <p className="text-xs text-white/50">
-                  Master Admin governance over all registered users. Suspending an account instantly blocks logins and marks user media as locked.
+                  Master Admin governance over registered users. Suspending an account instantly blocks logins and marks user media as locked.
                 </p>
               </div>
-              <span className="text-xs font-mono text-white/60 bg-white/5 px-2.5 py-1 rounded-lg border border-white/10">
-                {users.length} Total Users Registered
-              </span>
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <input
+                  type="text"
+                  placeholder="Filter users by name, username, email..."
+                  value={userSearch}
+                  onChange={(e) => {
+                    setUserSearch(e.target.value);
+                    setUserPage(1);
+                  }}
+                  className="bg-white/5 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white placeholder:text-white/40 focus:outline-none focus:border-purple-400/50 w-full sm:w-64"
+                />
+                <span className="text-xs font-mono text-white/60 bg-white/5 px-2.5 py-1.5 rounded-lg border border-white/10 shrink-0">
+                  {filteredUsers.length} Users
+                </span>
+              </div>
             </div>
 
             <div className="overflow-x-auto">
@@ -444,7 +487,7 @@ export function AdminDashboard({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
-                  {users.map((u) => {
+                  {paginatedUsers.map((u) => {
                     const isSuspended = u.status === 'suspended';
                     const isMasterAdmin = u.role === 'ADMIN';
 
@@ -546,6 +589,36 @@ export function AdminDashboard({
                 </tbody>
               </table>
             </div>
+
+            {/* Pagination Controls */}
+            {totalUserPages > 1 && (
+              <div className="p-4 border-t border-white/10 flex items-center justify-between text-xs">
+                <span className="text-white/50">
+                  Showing {(userPage - 1) * USERS_PER_PAGE + 1} - {Math.min(userPage * USERS_PER_PAGE, filteredUsers.length)} of {filteredUsers.length}
+                </span>
+                <div className="flex items-center gap-2">
+                  <GlassButton
+                    size="sm"
+                    variant="secondary"
+                    disabled={userPage <= 1}
+                    onClick={() => setUserPage((p) => Math.max(1, p - 1))}
+                  >
+                    Previous
+                  </GlassButton>
+                  <span className="text-white font-mono px-2">
+                    {userPage} / {totalUserPages}
+                  </span>
+                  <GlassButton
+                    size="sm"
+                    variant="secondary"
+                    disabled={userPage >= totalUserPages}
+                    onClick={() => setUserPage((p) => Math.min(totalUserPages, p + 1))}
+                  >
+                    Next
+                  </GlassButton>
+                </div>
+              </div>
+            )}
           </GlassCard>
         </div>
       )}
@@ -679,7 +752,8 @@ export function AdminDashboard({
               <div className="flex items-center gap-4">
                 {p.isReel || p.media[0]?.resourceType === 'video' ? (
                   <video
-                    src={`${p.media[0]?.optimizedUrl || p.media[0]?.originalUrl}#t=0.001`}
+                    src={p.media[0]?.optimizedUrl || p.media[0]?.originalUrl}
+                    poster={p.media[0]?.thumbnailUrl && !p.media[0]?.thumbnailUrl.includes('.mp4') ? p.media[0]?.thumbnailUrl : '/pics/pic_01.jpg'}
                     preload="metadata"
                     muted
                     playsInline
@@ -687,8 +761,9 @@ export function AdminDashboard({
                   />
                 ) : (
                   <img
-                    src={p.media[0]?.thumbnailUrl || p.media[0]?.originalUrl}
+                    src={p.media[0]?.thumbnailUrl || p.media[0]?.originalUrl || '/pics/pic_01.jpg'}
                     alt="Flagged media"
+                    onError={(e) => { e.currentTarget.src = '/pics/pic_01.jpg'; }}
                     className="w-20 h-20 rounded-xl object-cover border border-white/15"
                   />
                 )}

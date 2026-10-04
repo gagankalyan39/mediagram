@@ -140,8 +140,13 @@ export default function LoginPage() {
           <GlassCard className="p-7 border border-white/15 space-y-5 shadow-2xl">
             {/* Logo */}
             <div className="text-center space-y-1">
-              <div className="inline-flex p-3 rounded-2xl bg-gradient-to-tr from-amber-400 via-rose-500 to-purple-600 shadow-lg shadow-purple-500/20 mb-1">
-                <span className="text-2xl">📸</span>
+              <div className="inline-flex w-16 h-16 rounded-2xl bg-gradient-to-tr from-amber-400 via-rose-500 to-purple-600 shadow-xl shadow-purple-500/30 mb-2 p-0.5 border border-white/20 overflow-hidden hover:scale-105 transition-transform">
+                <img
+                  src="/logo.jpg"
+                  alt="MediaGram Logo"
+                  decoding="async"
+                  className="w-full h-full object-cover rounded-[14px]"
+                />
               </div>
               <h1 className="text-2xl font-black tracking-tight bg-gradient-to-r from-amber-200 via-white to-pink-300 bg-clip-text text-transparent">
                 MediaGram

@@ -43,7 +43,7 @@ export function StoryViewerModal({
     setProgress(0);
 
     const duration = (activeStory.durationSeconds || 6) * 1000;
-    const intervalMs = 40;
+    const intervalMs = 100;
     const step = (intervalMs / duration) * 100;
 
     timerRef.current = setInterval(() => {

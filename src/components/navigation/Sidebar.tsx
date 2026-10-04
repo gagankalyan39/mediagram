@@ -87,7 +87,7 @@ export function Sidebar({
       <div className="space-y-6">
         <Link href="/" className="flex items-center gap-3 px-3 py-2 group">
           <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-400 via-rose-500 to-purple-600 flex items-center justify-center shadow-lg shadow-purple-500/20 group-hover:scale-105 transition-transform overflow-hidden">
-            <img src="/logo.jpg" alt="MediaGram Logo" className="w-full h-full object-cover" />
+            <img src="/logo.jpg" alt="MediaGram Logo" decoding="async" className="w-full h-full object-cover" />
           </div>
           <div>
             <span className="font-extrabold text-xl tracking-tight bg-gradient-to-r from-amber-200 via-white to-pink-300 bg-clip-text text-transparent">

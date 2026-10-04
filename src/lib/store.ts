@@ -1,17 +1,20 @@
 import { User, Post, Reel, Story, MediaAsset, AdminStats, Comment, UserSettings, DirectMessage, Role, NotificationItem } from './types';
-import { SEED_POSTS, SEED_REELS, SEED_STORIES } from './seed-data';
+import { SEED_POSTS, SEED_REELS, SEED_STORIES, SEED_USERS } from './seed-data';
 import { generateUsers, UNIVERSAL_PASSWORD } from './user-generator';
 import { rankFeedPostsWithML } from './recommendation';
+import { getVideoPosterUrl } from './cloudinary';
 
 // Singleton persistent store with localStorage hydration and instant reactivity
 class MediaGramStore {
-  private users: User[] = generateUsers(); // 1,050+ Realistic unique accounts
+  private users: User[] = SEED_USERS; // 1,050+ Realistic unique accounts (singleton)
+  private cachedPublicUsers: User[] | null = null;
   private posts: Post[] = [...SEED_POSTS];
   private reels: Reel[] = [...SEED_REELS];
   private stories: Story[] = [...SEED_STORIES];
   private currentUserId: string = 'usr_customer'; // Default logged in user: Normal Customer
   private authenticated: boolean = true; // Customer auth state
   private adminAuthenticated: boolean = false; // Separate Master Admin session state
+  private followingUserIds: Set<string> = new Set(['usr_feat_1', 'usr_feat_2', 'usr_feat_3']); // Follow graph
   private messages: DirectMessage[] = [
     {
       id: 'dm_1',
@@ -144,10 +147,14 @@ class MediaGramStore {
   public saveToStorage() {
     if (typeof window === 'undefined') return;
     try {
+      localStorage.setItem('mediagram:posts', JSON.stringify(this.posts));
+      localStorage.setItem('mediagram:reels', JSON.stringify(this.reels));
+      localStorage.setItem('mediagram:stories', JSON.stringify(this.stories));
       localStorage.setItem('mediagram:messages', JSON.stringify(this.messages));
       localStorage.setItem('mediagram:notifications', JSON.stringify(this.notifications));
       localStorage.setItem('mediagram:currentUserId', this.currentUserId);
       localStorage.setItem('mediagram:authenticated', JSON.stringify(this.authenticated));
+      localStorage.setItem('mediagram:following', JSON.stringify(Array.from(this.followingUserIds)));
     } catch (e) {
       console.warn('Storage save failed:', e);
     }
@@ -156,6 +163,36 @@ class MediaGramStore {
   public loadFromStorage() {
     if (typeof window === 'undefined') return;
     try {
+      const storedPosts = localStorage.getItem('mediagram:posts');
+      if (storedPosts) {
+        try {
+          const parsed = JSON.parse(storedPosts);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            this.posts = parsed;
+          }
+        } catch {}
+      }
+
+      const storedReels = localStorage.getItem('mediagram:reels');
+      if (storedReels) {
+        try {
+          const parsed = JSON.parse(storedReels);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            this.reels = parsed;
+          }
+        } catch {}
+      }
+
+      const storedStories = localStorage.getItem('mediagram:stories');
+      if (storedStories) {
+        try {
+          const parsed = JSON.parse(storedStories);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            this.stories = parsed;
+          }
+        } catch {}
+      }
+
       const msgs = localStorage.getItem('mediagram:messages');
       if (msgs) this.messages = JSON.parse(msgs);
       const notifs = localStorage.getItem('mediagram:notifications');
@@ -164,6 +201,15 @@ class MediaGramStore {
       if (cur) this.currentUserId = cur;
       const auth = localStorage.getItem('mediagram:authenticated');
       if (auth) this.authenticated = JSON.parse(auth);
+      const storedFollowing = localStorage.getItem('mediagram:following');
+      if (storedFollowing) {
+        try {
+          const parsed = JSON.parse(storedFollowing);
+          if (Array.isArray(parsed)) {
+            this.followingUserIds = new Set(parsed);
+          }
+        } catch {}
+      }
     } catch (e) {
       console.warn('Storage load failed:', e);
     }
@@ -244,7 +290,23 @@ class MediaGramStore {
   }
 
   getPublicUsers(): User[] {
-    return this.users.filter(u => u.role !== 'ADMIN');
+    if (!this.cachedPublicUsers) {
+      this.cachedPublicUsers = this.users.filter(u => u.role !== 'ADMIN');
+    }
+    return this.cachedPublicUsers;
+  }
+
+  getSuggestedUsers(count = 3): User[] {
+    const curId = this.currentUserId;
+    const result: User[] = [];
+    for (let i = 0; i < this.users.length; i++) {
+      const u = this.users[i];
+      if (u.id !== curId && u.role !== 'ADMIN') {
+        result.push(u);
+        if (result.length >= count) break;
+      }
+    }
+    return result;
   }
 
   // --- Current User & Account Switcher ---
@@ -279,6 +341,55 @@ class MediaGramStore {
 
   getUserByUsername(username: string): User | undefined {
     return this.users.find(u => u.username.toLowerCase() === username.toLowerCase());
+  }
+
+  // --- Follow Graph Management ---
+  isFollowing(userId: string): boolean {
+    return this.followingUserIds.has(userId);
+  }
+
+  toggleFollow(targetUserId: string): boolean {
+    if (targetUserId === this.currentUserId) return false;
+    const currentUser = this.getCurrentUser();
+    const targetUser = this.users.find(u => u.id === targetUserId);
+
+    let isNowFollowing: boolean;
+    if (this.followingUserIds.has(targetUserId)) {
+      this.followingUserIds.delete(targetUserId);
+      isNowFollowing = false;
+      currentUser.followingCount = Math.max(0, (currentUser.followingCount || 0) - 1);
+      if (targetUser) {
+        targetUser.followersCount = Math.max(0, (targetUser.followersCount || 0) - 1);
+      }
+    } else {
+      this.followingUserIds.add(targetUserId);
+      isNowFollowing = true;
+      currentUser.followingCount = (currentUser.followingCount || 0) + 1;
+      if (targetUser) {
+        targetUser.followersCount = (targetUser.followersCount || 0) + 1;
+        // Dispatch instant notification
+        this.notifications.unshift({
+          id: `notif_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+          userId: targetUserId,
+          type: 'follow',
+          fromUser: {
+            id: currentUser.id,
+            username: currentUser.username,
+            name: currentUser.name,
+            avatarUrl: currentUser.avatarUrl,
+          },
+          message: 'started following you.',
+          createdAt: new Date().toISOString(),
+          isRead: false,
+        });
+      }
+    }
+
+    this.saveToStorage();
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('beesocial:store_updated'));
+    }
+    return isNowFollowing;
   }
 
   createUser(userData: { username: string; name: string; email: string; role: Role }): User {
@@ -365,43 +476,62 @@ class MediaGramStore {
     const q = query.toLowerCase().trim();
     if (!q) return { users: [], posts: [], tags: [] };
 
-    const matchedUsers = this.users
-      .filter(
-        u =>
-          u.role !== 'ADMIN' &&
-          (u.username.toLowerCase().includes(q) ||
-            u.name.toLowerCase().includes(q) ||
-            (u.bio && u.bio.toLowerCase().includes(q)) ||
-            (u.interestTags && u.interestTags.some(t => t.toLowerCase().includes(q))))
-      )
-      .slice(0, 50);
+    const curId = this.currentUserId;
+    const matchedUsers: User[] = [];
+    for (let i = 0; i < this.users.length; i++) {
+      const u = this.users[i];
+      if (u.role === 'ADMIN' || u.id === curId) continue;
+      if (
+        u.username.toLowerCase().includes(q) ||
+        u.name.toLowerCase().includes(q) ||
+        (u.bio && u.bio.toLowerCase().includes(q)) ||
+        (u.interestTags && u.interestTags.some(t => t.toLowerCase().includes(q)))
+      ) {
+        matchedUsers.push(u);
+        if (matchedUsers.length >= 24) break;
+      }
+    }
 
-    const matchedPosts = this.posts.filter(
-      p => p.caption.toLowerCase().includes(q) || p.tags.some(t => t.toLowerCase().includes(q))
-    );
+    const matchedPosts: Post[] = [];
+    for (let i = 0; i < this.posts.length; i++) {
+      const p = this.posts[i];
+      if (p.caption.toLowerCase().includes(q) || p.tags.some(t => t.toLowerCase().includes(q))) {
+        matchedPosts.push(p);
+        if (matchedPosts.length >= 24) break;
+      }
+    }
 
     const matchedTags = Array.from(
       new Set(this.posts.flatMap(p => p.tags).filter(t => t.toLowerCase().includes(q)))
-    );
+    ).slice(0, 10);
 
     return { users: matchedUsers, posts: matchedPosts, tags: matchedTags };
   }
 
   searchUsers(query: string, limit = 50): User[] {
     const q = query.toLowerCase().trim();
-    const publicUsers = this.users.filter(u => u.role !== 'ADMIN' && u.id !== this.currentUserId);
-    if (!q) {
-      return publicUsers.slice(0, limit);
+    const curId = this.currentUserId;
+    const results: User[] = [];
+
+    for (let i = 0; i < this.users.length; i++) {
+      const u = this.users[i];
+      if (u.role === 'ADMIN' || u.id === curId) continue;
+      if (!q) {
+        results.push(u);
+        if (results.length >= limit) break;
+        continue;
+      }
+      if (
+        u.username.toLowerCase().includes(q) ||
+        u.name.toLowerCase().includes(q) ||
+        (u.bio && u.bio.toLowerCase().includes(q)) ||
+        (u.interestTags && u.interestTags.some(t => t.toLowerCase().includes(q)))
+      ) {
+        results.push(u);
+        if (results.length >= limit) break;
+      }
     }
-    return publicUsers
-      .filter(
-        u =>
-          u.username.toLowerCase().includes(q) ||
-          u.name.toLowerCase().includes(q) ||
-          (u.bio && u.bio.toLowerCase().includes(q)) ||
-          (u.interestTags && u.interestTags.some(t => t.toLowerCase().includes(q)))
-      )
-      .slice(0, limit);
+    return results;
   }
 
   // --- Direct Messages & Conversations List ---
@@ -519,12 +649,18 @@ class MediaGramStore {
 
     // Instagram-style dynamic discovery:
     // Blend user interest relevance with dynamic randomness so each visit/user gets a vibrant randomized mix of reels & photo posts
+    // Newly created posts by the user or within 24 hours receive high priority at the top of the feed
     const randomized = mlRanked
-      .map(post => ({
-        post,
-        // Composite discovery score: dynamic exploration noise (0-100) + ML affinity bonus (0-25)
-        randomWeight: Math.random() * 100 + ((post.recommendationExplanation?.overallScore || 50) * 0.25)
-      }))
+      .map(post => {
+        const isOwner = post.userId === user.id;
+        const isRecent = Date.now() - new Date(post.createdAt).getTime() < 24 * 3600 * 1000;
+        const priorityBonus = isOwner ? 250 : (isRecent ? 120 : 0);
+        return {
+          post,
+          // Composite discovery score: dynamic exploration noise (0-100) + ML affinity bonus (0-25) + priority bonus
+          randomWeight: Math.random() * 100 + ((post.recommendationExplanation?.overallScore || 50) * 0.25) + priorityBonus
+        };
+      })
       .sort((a, b) => b.randomWeight - a.randomWeight)
       .map(item => item.post);
 
@@ -561,6 +697,13 @@ class MediaGramStore {
     }
 
     const newPostId = `post_${Date.now()}`;
+    const isVideo =
+      Boolean(data.isReel) ||
+      data.media.some(
+        (m) =>
+          m.resourceType === 'video' ||
+          (m.originalUrl && m.originalUrl.toLowerCase().includes('.mp4'))
+      );
 
     const newPost: Post = {
       id: newPostId,
@@ -582,16 +725,26 @@ class MediaGramStore {
       isLiked: false,
       isBookmarked: false,
       tags: data.tags || [],
-      isReel: data.isReel || false,
+      isReel: isVideo,
       comments: [],
       createdAt: new Date().toISOString(),
     };
 
     this.posts.unshift(newPost);
-    currentUser.postsCount += 1;
+    currentUser.postsCount = (currentUser.postsCount || 0) + 1;
+    const authorInList = this.users.find((u) => u.id === currentUser.id);
+    if (authorInList) {
+      authorInList.postsCount = (authorInList.postsCount || 0) + 1;
+    }
 
     // If it's a Reel, also add to reels feed
-    if (data.isReel && data.media[0] && data.media[0].resourceType === 'video') {
+    if (isVideo && data.media[0]) {
+      const vidAsset = data.media[0];
+      const poster =
+        vidAsset.thumbnailUrl && !vidAsset.thumbnailUrl.toLowerCase().includes('.mp4')
+          ? vidAsset.thumbnailUrl
+          : getVideoPosterUrl(vidAsset.originalUrl || vidAsset.optimizedUrl);
+
       const newReel: Reel = {
         id: `reel_${Date.now()}`,
         postId: newPostId,
@@ -603,20 +756,25 @@ class MediaGramStore {
           avatarUrl: currentUser.avatarUrl,
           isVerified: currentUser.isVerified,
         },
-        videoUrl: data.media[0].optimizedUrl || data.media[0].originalUrl,
-        posterUrl: data.media[0].thumbnailUrl,
+        videoUrl: vidAsset.optimizedUrl || vidAsset.originalUrl,
+        posterUrl: poster,
         audioTrackTitle: data.audioTrackTitle || `${currentUser.name} · Original Audio`,
         caption: data.caption,
         likesCount: 0,
         commentsCount: 0,
         sharesCount: 0,
         viewsCount: 1,
-        duration: data.media[0].duration || 15,
+        duration: vidAsset.duration || 15,
         isLiked: false,
         isBookmarked: false,
         createdAt: new Date().toISOString(),
       };
       this.reels.unshift(newReel);
+    }
+
+    this.saveToStorage();
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('beesocial:store_updated'));
     }
 
     return newPost;
@@ -740,17 +898,108 @@ class MediaGramStore {
     return this.reels;
   }
 
-  getRandomizedReels(userId?: string): Reel[] {
+  /**
+   * DSA Algorithm: Modern Fisher-Yates (Knuth) in-place shuffle (O(N) time, O(1) auxiliary space)
+   * with Derangement Guarantee: Ensures the first video at the top of the feed is guaranteed to be
+   * fresh and different from the currently active reel.
+   */
+  getRandomizedReels(currentReelId?: string): Reel[] {
+    if (this.reels.length <= 1) return [...this.reels];
+
     const shuffled = [...this.reels];
-    for (let i = shuffled.length - 1; i > 0; i--) {
+    const n = shuffled.length;
+
+    // Fisher-Yates linear O(N) shuffle across ALL reels
+    for (let i = n - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      const temp = shuffled[i];
+      shuffled[i] = shuffled[j];
+      shuffled[j] = temp;
     }
+
+    // Derangement Guarantee: Swap element at 0 if it matches the current active reel
+    if (currentReelId && shuffled[0]?.id === currentReelId && n > 1) {
+      const swapIndex = 1 + Math.floor(Math.random() * (n - 1));
+      const temp = shuffled[0];
+      shuffled[0] = shuffled[swapIndex];
+      shuffled[swapIndex] = temp;
+    }
+
     return shuffled;
   }
 
+  /**
+   * Endless Infinite Reels Algorithm:
+   * 1. Unwatched reels are served in randomized order.
+   * 2. Watched reels repeat occasionally while browsing (~18% chance).
+   * 3. Once all catalog reels are watched, the cycle resets and repeats all reels.
+   * Ensures an infinite stream with zero dead ends.
+   */
+  getNextInfiniteReelsBatch(
+    watchedReelIds: Set<string>,
+    batchSize: number = 8
+  ): { nextBatch: Reel[]; updatedWatched: Set<string> } {
+    const allReels = this.reels;
+    if (allReels.length === 0) return { nextBatch: [], updatedWatched: watchedReelIds };
+
+    const updatedWatched = new Set(watchedReelIds);
+    let unwatched = allReels.filter((r) => !updatedWatched.has(r.id));
+
+    // If all catalog reels have been watched, reset the cycle to repeat all reels
+    if (unwatched.length === 0) {
+      updatedWatched.clear();
+      unwatched = [...allReels];
+    }
+
+    // Shuffle unwatched candidates (Fisher-Yates)
+    for (let i = unwatched.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const t = unwatched[i];
+      unwatched[i] = unwatched[j];
+      unwatched[j] = t;
+    }
+
+    const nextBatch: Reel[] = [];
+    const watchedArray = Array.from(watchedReelIds);
+
+    for (let i = 0; i < batchSize; i++) {
+      // 18% chance to occasionally repeat a watched reel while watching (if at least 3 have been watched)
+      const shouldRepeatWatched = watchedArray.length >= 3 && Math.random() < 0.18;
+
+      if (shouldRepeatWatched) {
+        const repeatCandidateId = watchedArray[Math.floor(Math.random() * watchedArray.length)];
+        const baseReel = allReels.find((r) => r.id === repeatCandidateId);
+        if (baseReel) {
+          nextBatch.push({
+            ...baseReel,
+            id: `${baseReel.id}_rpt_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+          });
+          continue;
+        }
+      }
+
+      if (unwatched.length === 0) {
+        // All reels watched in this run! Reset cycle so reels repeat endlessly
+        updatedWatched.clear();
+        unwatched = [...allReels].sort(() => Math.random() - 0.5);
+      }
+
+      const nextReel = unwatched.pop();
+      if (nextReel) {
+        updatedWatched.add(nextReel.id);
+        nextBatch.push({
+          ...nextReel,
+          id: `${nextReel.id}_rpt_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        });
+      }
+    }
+
+    return { nextBatch, updatedWatched };
+  }
+
   toggleLikeReel(reelId: string): { isLiked: boolean; likesCount: number } {
-    const reel = this.reels.find(r => r.id === reelId);
+    const canonicalId = reelId.split('_rpt_')[0];
+    const reel = this.reels.find((r) => r.id === canonicalId || r.id === reelId);
     if (!reel) throw new Error('Reel not found');
 
     reel.isLiked = !reel.isLiked;
@@ -848,6 +1097,10 @@ class MediaGramStore {
       isSeen: false,
     };
     this.stories.unshift(newStory);
+    this.saveToStorage();
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('beesocial:store_updated'));
+    }
     return newStory;
   }
 

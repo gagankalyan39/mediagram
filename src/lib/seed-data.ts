@@ -1,6 +1,7 @@
 import { User, Post, Reel, Story, MediaAsset } from './types';
 import { generateUsers } from './user-generator';
 import { PRESET_VIDEO_CLIPS } from './video-library';
+import { getVideoPosterUrl } from './cloudinary';
 
 export const SEED_USERS: User[] = generateUsers();
 
@@ -129,7 +130,7 @@ export const SEED_REELS: Reel[] = PRESET_VIDEO_CLIPS.map((clip, index) => {
       isVerified: author.isVerified,
     },
     videoUrl: clip.videoUrl,
-    posterUrl: `${clip.videoUrl}#t=0.001`,
+    posterUrl: getVideoPosterUrl(clip.videoUrl),
     audioTrackTitle: clip.audioTrackTitle,
     caption: clip.caption,
     likesCount: clip.likesCount,
@@ -357,7 +358,7 @@ const INITIAL_PHOTO_POSTS: Post[] = [
         duration: 15,
         bytes: 8556210,
         originalUrl: '/videos/reel_01.mp4',
-        thumbnailUrl: '/videos/reel_01.mp4#t=0.001',
+        thumbnailUrl: getVideoPosterUrl('/videos/reel_01.mp4'),
         optimizedUrl: '/videos/reel_01.mp4',
         folder: 'beesocial/posts/videos',
         tags: ['tokyo', 'neon', 'video', 'cinematics'],

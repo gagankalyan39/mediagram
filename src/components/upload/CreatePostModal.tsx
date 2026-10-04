@@ -28,6 +28,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { generateCloudinaryAIContext, CloudinaryAIContextResult, AICaptionTone } from '@/lib/cloudinary-ai';
+import { getVideoPosterUrl } from '@/lib/cloudinary';
 
 interface CreatePostModalProps {
   isOpen: boolean;
@@ -186,7 +187,7 @@ export function CreatePostModal({
           duration: selectedPresetClip.duration,
           bytes: 4800000,
           originalUrl: selectedPresetClip.videoUrl,
-          thumbnailUrl: `${selectedPresetClip.videoUrl}#t=0.001`,
+          thumbnailUrl: getVideoPosterUrl(selectedPresetClip.videoUrl),
           optimizedUrl: selectedPresetClip.videoUrl,
           folder: 'mediagram/reels',
           tags: tagsInput.split(',').map((t) => t.trim().replace('#', '')).filter(Boolean),
@@ -213,7 +214,7 @@ export function CreatePostModal({
           height: isVideo ? 1920 : 1350,
           bytes: 450000,
           originalUrl: previewUrl,
-          thumbnailUrl: isVideo ? `${previewUrl}#t=0.001` : previewUrl,
+          thumbnailUrl: isVideo ? getVideoPosterUrl(previewUrl) : previewUrl,
           optimizedUrl: previewUrl,
           folder,
           tags: tagsInput.split(',').map((t) => t.trim()).filter(Boolean),
@@ -232,7 +233,7 @@ export function CreatePostModal({
           location: location.trim() || undefined,
           media: [mediaAsset],
           tags: tagsInput.split(',').map((t) => t.trim().replace('#', '')).filter(Boolean),
-          isReel: postType === 'reel',
+          isReel: postType === 'reel' || isVideo,
           audioTrackTitle: audioTrackTitle.trim() || (isVideo ? `${currentUser.name} · Original Audio` : undefined),
         });
       }

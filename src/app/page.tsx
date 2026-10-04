@@ -32,7 +32,7 @@ export default function HomePage() {
   const [currentUser, setCurrentUser] = useState<User>(store.getCurrentUser());
   const [posts, setPosts] = useState<Post[]>(store.getRawPosts());
   const [stories, setStories] = useState<Story[]>(store.getStories());
-  const [allUsers, setAllUsers] = useState<User[]>(store.getAllUsers());
+  const [suggestedUsers, setSuggestedUsers] = useState<User[]>(() => store.getSuggestedUsers(3));
   const [activeStoryIdx, setActiveStoryIdx] = useState<number | null>(null);
   const [isAddStoryOpen, setIsAddStoryOpen] = useState(false);
   const [feedMode, setFeedMode] = useState<'discover' | 'latest' | 'popular'>('discover');
@@ -44,7 +44,17 @@ export default function HomePage() {
     const cur = store.getCurrentUser();
     setCurrentUser({ ...cur });
     setStories([...store.getStories()]);
-    setAllUsers([...store.getAllUsers()]);
+    setSuggestedUsers(store.getSuggestedUsers(3));
+    // Immediately display newly created/uploaded posts at the top of the feed
+    const allPosts = store.getRawPosts();
+    setPosts((prev) => {
+      const existingIds = new Set(prev.map((p) => p.id));
+      const brandNew = allPosts.filter((p) => !existingIds.has(p.id));
+      if (brandNew.length > 0) {
+        return [...brandNew, ...prev];
+      }
+      return prev;
+    });
   };
 
   useEffect(() => {
@@ -101,19 +111,16 @@ export default function HomePage() {
     );
   };
 
-  // Sort posts depending on feedMode
-  const displayedPosts = [...posts].sort((a, b) => {
+  // Sort posts depending on feedMode (memoized)
+  const displayedPosts = React.useMemo(() => {
     if (feedMode === 'latest') {
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      return [...posts].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     }
     if (feedMode === 'popular') {
-      return b.likesCount - a.likesCount;
+      return [...posts].sort((a, b) => b.likesCount - a.likesCount);
     }
-    // Default 'discover': preserves the randomized Instagram-style exploration shuffle
-    return 0;
-  });
-
-  const suggestedUsers = allUsers.filter((u) => u.id !== currentUser.id && u.role !== 'ADMIN').slice(0, 3);
+    return posts;
+  }, [posts, feedMode]);
 
   if (!isMounted) {
     return (
@@ -191,6 +198,44 @@ export default function HomePage() {
             </button>
           </div>
 
+          {/* Quick Suggested Follows Bar (Visible on mobile / tablets where right column is hidden) */}
+          <div className="lg:hidden p-3 rounded-2xl glass border border-white/10 bg-white/[0.02] space-y-2">
+            <div className="flex items-center justify-between text-xs px-1">
+              <span className="font-bold text-white/90">Suggested Creators to Follow</span>
+              <Link href="/explore" className="text-[11px] text-amber-400 hover:underline font-semibold">
+                Explore All
+              </Link>
+            </div>
+            <div className="flex items-center gap-3 overflow-x-auto pb-1 scrollbar-none">
+              {suggestedUsers.map((sUser) => {
+                const isFollowing = store.isFollowing(sUser.id);
+                return (
+                  <div
+                    key={sUser.id}
+                    className="flex flex-col items-center p-2.5 rounded-xl bg-white/[0.04] border border-white/10 shrink-0 w-28 text-center space-y-1.5"
+                  >
+                    <GlassAvatar src={sUser.avatarUrl} name={sUser.name} size="sm" isVerified={sUser.isVerified} />
+                    <span className="text-[11px] font-bold text-white truncate w-full">@{sUser.username}</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        store.toggleFollow(sUser.id);
+                        syncState();
+                      }}
+                      className={`w-full py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                        isFollowing
+                          ? 'bg-white/10 text-white/70'
+                          : 'bg-amber-400 hover:bg-amber-300 text-black font-extrabold shadow-sm'
+                      }`}
+                    >
+                      {isFollowing ? 'Following' : 'Follow'}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
           {/* Posts Feed */}
           <div className="space-y-6">
             {displayedPosts.map((post) => (
@@ -246,29 +291,43 @@ export default function HomePage() {
             </div>
 
             <div className="space-y-3 pt-1">
-              {suggestedUsers.map((user) => (
-                <div key={user.id} className="flex items-center justify-between">
-                  <Link
-                    href={`/profile/${user.username}`}
-                    className="flex items-center gap-2.5 overflow-hidden"
-                  >
-                    <GlassAvatar
-                      src={user.avatarUrl}
-                      name={user.name}
-                      size="sm"
-                      isVerified={user.isVerified}
-                    />
-                    <div className="overflow-hidden">
-                      <p className="text-xs font-semibold text-white truncate">{user.username}</p>
-                      <p className="text-[10px] text-white/40 truncate">Suggested for you</p>
-                    </div>
-                  </Link>
+              {suggestedUsers.map((user) => {
+                const isUserFollowing = store.isFollowing(user.id);
+                return (
+                  <div key={user.id} className="flex items-center justify-between">
+                    <Link
+                      href={`/profile/${user.username}`}
+                      className="flex items-center gap-2.5 overflow-hidden"
+                    >
+                      <GlassAvatar
+                        src={user.avatarUrl}
+                        name={user.name}
+                        size="sm"
+                        isVerified={user.isVerified}
+                      />
+                      <div className="overflow-hidden">
+                        <p className="text-xs font-semibold text-white truncate">{user.username}</p>
+                        <p className="text-[10px] text-white/40 truncate">Suggested for you</p>
+                      </div>
+                    </Link>
 
-                  <button className="text-xs font-bold text-cyan-400 hover:text-cyan-300 cursor-pointer">
-                    Follow
-                  </button>
-                </div>
-              ))}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        store.toggleFollow(user.id);
+                        syncState();
+                      }}
+                      className={`text-xs font-bold transition-all px-2.5 py-1 rounded-full cursor-pointer ${
+                        isUserFollowing
+                          ? 'bg-white/10 text-white/70 hover:bg-white/20'
+                          : 'bg-amber-400 hover:bg-amber-300 text-black shadow-sm shadow-amber-400/20'
+                      }`}
+                    >
+                      {isUserFollowing ? 'Following' : 'Follow'}
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           </GlassCard>
 
