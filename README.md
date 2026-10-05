@@ -3,498 +3,189 @@
 # 🐝 MediaGram (BeeSocial)
 
 ### Next-Generation Social Media & Short-Form Video Platform  
-### Powered End-to-End by Cloudinary
+**Powered End-to-End by Cloudinary**
 
-[![Live Demo](https://img.shields.io/badge/Live%20Demo-mediagram--4lpf.vercel.app-6366f1?style=for-the-badge&logo=vercel&logoColor=white)](https://mediagram-4lpf.vercel.app/)
-[![Next.js](https://img.shields.io/badge/Next.js-16.3.8-black?style=for-the-badge&logo=next.js)](https://nextjs.org/)
+[![Hackathon](https://img.shields.io/badge/Hackathon-Pixel%20to%20Product-0052FF?style=for-the-badge&logo=cloudinary&logoColor=white)](https://hackindia.org/)
+[![Partner](https://img.shields.io/badge/Partner-HackIndia-FF6B00?style=for-the-badge)](https://hackindia.org/)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-mediagram--4lpf.vercel.app-10B981?style=for-the-badge&logo=vercel&logoColor=white)](https://mediagram-4lpf.vercel.app/)
+[![Next.js](https://img.shields.io/badge/Next.js-16.3-black?style=for-the-badge&logo=next.js)](https://nextjs.org/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react)](https://react.dev/)
-[![Cloudinary](https://img.shields.io/badge/Cloudinary-Powered-3448C5?style=for-the-badge&logo=cloudinary)](https://cloudinary.com/)
+[![Cloudinary](https://img.shields.io/badge/Cloudinary-Media%20Cloud-3448C5?style=for-the-badge&logo=cloudinary)](https://cloudinary.com/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=for-the-badge&logo=typescript)](https://www.typescriptlang.org/)
-[![Vercel](https://img.shields.io/badge/Deployed-Vercel-000000?style=for-the-badge&logo=vercel)](https://mediagram-4lpf.vercel.app/)
+
+---
+
+### 🏆 Project Prepared for the **"Pixel to Product"** Hackathon
+Presented by [**Cloudinary**](https://cloudinary.com/) in partnership with [**HackIndia**](https://hackindia.org/)
+
+🚀 **[Launch Live Web Application (mediagram-4lpf.vercel.app)](https://mediagram-4lpf.vercel.app/)** 🚀
 
 </div>
 
 ---
 
-## 🌐 Live Deployment
-
-🚀 **[https://mediagram-4lpf.vercel.app/](https://mediagram-4lpf.vercel.app/)**
-
-Experience the live application and full Cloudinary media pipeline.
-
----
-
-## 📑 Table of Contents
-
-- [Overview](#overview)
-- [What Problems Does It Solve?](#what-problems-does-it-solve)
-- [Key Features](#key-features)
-- [Architecture](#architecture)
-  - [System Component Architecture](#system-component-architecture)
-  - [Signed Direct Upload Flow](#signed-direct-upload-flow)
-  - [Cloudinary Transformation Pipeline](#cloudinary-transformation-pipeline)
-  - [VideoCoordinator Singleton](#videocoordinator-singleton)
-- [Cloudinary as the Central Backbone](#cloudinary-as-the-central-backbone)
-  - [User Media Folder Partitioning](#user-media-folder-partitioning)
-  - [Transformation URL Reference](#transformation-url-reference)
-  - [AI Context & Multimodal Engine](#ai-context--multimodal-engine)
-- [Tech Stack](#tech-stack)
-- [Project Directory Structure](#project-directory-structure)
-- [Getting Started](#getting-started)
-- [Environment Variables](#environment-variables)
-- [Deployment](#deployment)
-- [Performance Metrics](#performance-metrics)
-- [Hackathon Alignment](#hackathon-alignment)
-
----
-
 ## 💡 Overview
 
-**MediaGram** (BeeSocial) is a full-stack social media web application that replicates and extends Instagram-grade functionality — complete with a vertical Reels engine, Stories bar, ML-powered feed discovery, and an interactive media management hub — with **Cloudinary** as the central intelligence and delivery backbone.
+**MediaGram** is a modern, high-performance social platform and short-form video feed built to showcase the full power of the [**Cloudinary Media Cloud**](https://cloudinary.com/). 
 
-Every aspect of media handling — from client-side signed direct CDN streaming, multi-tenant per-user folder compartmentalization, AI-driven content contextualization, smart cropping, dynamic video poster generation, to real-time observability — is architected natively around Cloudinary APIs.
+Rather than using Cloudinary as passive storage, MediaGram elevates it into the **central intelligence and delivery backbone** of the application — handling signed direct client-to-CDN ingestion, real-time dynamic responsive transformations, video poster extraction, automated AI captioning, and multi-tenant media management.
 
 ---
 
-## 🎯 What Problems Does It Solve?
+## 🎯 Problems Solved with Cloudinary
 
-| Problem | MediaGram + Cloudinary Solution | Impact |
+| Challenge | MediaGram + Cloudinary Solution | Impact |
 |---|---|---|
-| **Mobile Payload Bloat** | Automatic Next-Gen formats (`f_auto`) & perceptual compression (`q_auto`) | **Up to 64.5% payload reduction** with zero visual degradation |
-| **Multi-Viewport Fragmentation** | On-the-fly URL transformations (`c_fill,g_auto`, `c_thumb,g_face`) | Single master asset dynamically feeds feeds, reels, stories & avatars |
-| **Serverless Upload Limits** | Cryptographic HMAC signed client-to-CDN direct streaming | **Bypasses Vercel 4.5 MB payload limits** completely for large 4K reels |
-| **Creator Cognitive Fatigue** | Cloudinary Vision & Semantic Context Engine (`cloudinary-ai.ts`) | Instant 4-tone caption generator, tag suggestions, and geotag recommendations |
-| **Media Observability Blind Spot** | Live Developer API Hub (`/library`) and Admin Center (`/admin`) | Real-time visibility into CDN flags, compression ratios, and bandwidth savings |
+| **Mobile Payload Bloat** | Automatic next-gen format negotiation (`f_auto`) and perceptual compression (`q_auto`). | **Up to 64.5% payload reduction** with zero visual degradation. |
+| **Multi-Viewport Fragmentation** | On-the-fly URL transformations (`c_fill,g_auto`, `c_thumb,g_face`) from a single master asset. | One uploaded file dynamically powers feeds, 9:16 reels, story banners, and circular avatars. |
+| **Serverless Upload Limits** | Cryptographic HMAC signed client-to-CDN direct streaming. | **Bypasses Vercel's 4.5 MB request limit**, allowing smooth 4K and large video uploads. |
+| **Creator Cognitive Fatigue** | Cloudinary Vision & Semantic Context Engine ([`src/lib/cloudinary-ai.ts`](src/lib/cloudinary-ai.ts)). | Instant 4-tone AI captions (Cinematic, Viral, Aesthetic, Humor), auto-tags, and audio vibe pairing. |
+| **Media Observability Blind Spot** | Live [Developer API Hub](https://mediagram-4lpf.vercel.app/library) and [Admin Command Center](https://mediagram-4lpf.vercel.app/admin). | Real-time visibility into CDN flags, compression ratios, and bandwidth savings. |
 
 ---
 
-## ✨ Key Features
+## ✨ Core Features
 
-### 📱 Home Feed
-- **ML-Powered Discovery Algorithm:** Multi-factor scoring combining User Interest (40%), Engagement (30%), Recency (20%), and Media Type (10%) with Fisher-Yates dynamic shuffling.
-- **Infinite Feed Stream:** Seamless IntersectionObserver sentinel pattern loads additional posts endlessly with zero lag.
-- **Multi-Mode Feed Filtering:** Instant switching between **Discover**, **Latest**, and **Popular**, with real-time feed reshuffling.
-- **Synchronized Video Player:** Managed by `VideoCoordinator` so strictly one video plays at a time.
-- **Algorithm Transparency Modal:** Click to inspect real-time ML scoring metrics for any post.
+- 🎬 **[Vertical 9:16 Reels Engine](https://mediagram-4lpf.vercel.app/reels)** • [View Source](src/app/reels/page.tsx)
+  - Native 9:16 snap-to-scroll video player with double-tap heart gesture.
+  - Global [`VideoCoordinator`](src/lib/video-coordinator.ts) singleton guarantees strictly **one** unmuted video plays across all feeds, preventing overlapping audio.
+  - Desktop keyboard controls (Arrow keys up/down, `M` to mute).
 
-### 🎬 Full-Screen Reels Engine (`/reels`)
-- **9:16 Vertical Video Experience:** Smooth snap-to-scroll navigation mimicking native mobile apps.
-- **Smart Autoplay & Sound Management:** Autoplays unmuted upon scroll while persisting user sound preferences.
-- **Interactive Gestures:** Double-tap to like with heart burst animation; single-tap to pause/resume.
-- **Independent Action Bar:** Isolated Like, Comment, Share, and Bookmark interactions that never interrupt video playback.
-- **Keyboard Navigation:** Full desktop control with Arrow keys (Up/Down) and `M` for mute toggle.
+- 📱 **[Dynamic Home Feed & Ephemeral Stories](https://mediagram-4lpf.vercel.app/)** • [View Source](src/app/page.tsx)
+  - Multi-factor discovery algorithm (User Interest, Engagement, Recency, Media Type).
+  - Infinite feed stream with dynamic Fisher-Yates reshuffling.
+  - 24-hour animated story carousel with interactive timed full-screen viewer.
 
-### ⏱️ Stories Bar
-- **24-Hour Ephemeral Stories:** Interactive avatar carousel with animated gradient rings indicating unviewed stories.
-- **Full-Screen Timed Viewer:** Automatic progress bar pacing with pause-on-hold and skip navigation.
-- **In-Feed Story Creation:** Quick story capture directly from the creator dashboard.
+- 🤖 **[AI-Powered Creator Studio](https://mediagram-4lpf.vercel.app/)** • [View Source](src/components/upload/CreatePostModal.tsx)
+  - Direct signed drag-and-drop media upload via [`/api/media/sign`](src/app/api/media/sign/route.ts).
+  - 33+ curated HD video reel presets ready for instant testing ([`src/lib/video-library.ts`](src/lib/video-library.ts)).
+  - Cloudinary AI caption generator with 4 creator tones and smart hashtag recommendations.
 
-### 🔍 Universal Search & Discovery (`/explore`)
-- **Multi-Entity Search:** Real-time fuzzy filtering across creators, posts, hashtags, locations, and captions.
-- **Masonry Media Grid:** Dynamically scaled square and portrait thumbnails optimized via Cloudinary.
+- 🔍 **[Universal Explore & Discovery Grid](https://mediagram-4lpf.vercel.app/explore)** • [View Source](src/app/explore/page.tsx)
+  - Masonry grid layout with real-time search across creators, hashtags, locations, and captions.
 
-### 👤 User Profiles & Multi-Account Switcher
-- **1,000+ Mock Accounts:** Dynamically generated realistic profiles with avatars, bios, follower counts, and verified badges.
-- **Separated Media Tabs:** Filter user content by **Posts**, **Reels**, and **Tagged**.
-- **Live Follow Engine:** Interactive follow/unfollow with instant follower count updates.
+- 🗄️ **[Cloudinary Developer API Hub](https://mediagram-4lpf.vercel.app/library)** • [View Source](src/app/library/page.tsx)
+  - Live asset inspector displaying applied transformation parameters, public IDs, and byte savings.
+  - Real-time controls to inspect delivery URLs, formats, and CDN parameters.
 
-### 🎨 Create Post Modal (AI-Powered)
-- **Direct CDN Upload:** Drag-and-drop file ingestion bypassing server size limits.
-- **33+ Curated Reel Presets:** Instant access to high-definition video reels for quick testing.
-- **Cloudinary AI Caption Assistant:** 4 distinct tones:
-  - 🎬 **Cinematic:** Poetic, high-production atmosphere description.
-  - 🔥 **Viral:** High-energy hook with trending social hashtags.
-  - ✨ **Aesthetic:** Minimalist, sensory-focused visual poetry.
-  - 😂 **Humor:** Witty, relatable, comedic commentary.
-- **Smart Tagging:** Visual taxonomy analysis auto-suggests hashtags and location pins.
-
-### 🗄️ Cloudinary API Hub (`/library`)
-- **Interactive Asset Management:** Searchable catalog of all ingested media assets.
-- **Live Asset Inspector:** Detailed breakdown of Public IDs, applied transformations, byte weights, compression ratios, and AI tags.
-- **Direct Asset Controls:** Copy delivery URLs, preview transformed assets, or trigger deletions.
-
-### 📊 Admin Command Center (`/admin`)
-- **Real-Time Observability Panel:** Live bandwidth savings tracker (**14.2 GB saved**), compression statistics, CDN cache hit rates, and content moderation switches.
+- 📊 **[Admin Command Center & Observability](https://mediagram-4lpf.vercel.app/admin)** • [View Source](src/app/admin/page.tsx)
+  - Real-time analytics panel tracking bandwidth savings (**14.2+ GB saved**) and CDN cache performance.
 
 ---
 
-## 🏛️ Architecture
-
-### System Component Architecture
-
-```text
-+-------------------------------------------------------------------------+
-|                         MEDIAGRAM ARCHITECTURE                          |
-+-----------------------+------------------------+------------------------+
-|    NEXT.JS CLIENT     |   NEXT.JS APP SERVER   |    CLOUDINARY CLOUD    |
-+-----------------------+------------------------+------------------------+
-| - Feed & Reels UI     | - /api/media/sign      | - Global CDN Ingestion |
-| - Stories Bar         |   (HMAC signature)     | - Asset Storage        |
-| - Create Modal        | - /api/media/upload    | - Real-Time Transforms |
-|   (AI Assistant)      |   (Stream fallback)    |   f_auto, q_auto, crop |
-| - Library Hub         | - Cloudinary SDK v2    | - AI Vision & Auto-Tags|
-| - Admin Panel         |                        | - Akamai / Fastly CDN  |
-| - Reactive Store      |                        |                        |
-|   (localStorage)      |                        |                        |
-+-----------------------+------------------------+------------------------+
-```
-
-```mermaid
-graph TB
-    subgraph Client ["Next.js Client (Browser)"]
-        UI["Feed, Reels & Stories UI"]
-        Modal["Create Modal (AI Assistant)"]
-        Lib["Library Hub & Admin Panel"]
-        Store["Reactive Store (localStorage)"]
-    end
-
-    subgraph Server ["Next.js App Server"]
-        SignAPI["/api/media/sign (HMAC Generator)"]
-        UploadAPI["/api/media/upload (Fallback Stream)"]
-        SDK["Cloudinary Node.js SDK v2"]
-    end
-
-    subgraph Cloudinary ["Cloudinary Media Cloud"]
-        Ingest["Global CDN Ingestion API"]
-        Storage["Asset Storage & User Folder Tree"]
-        Transforms["Real-Time Transformation Engine"]
-        VisionAI["AI Vision & Semantic Analysis"]
-        EdgeCDN["Global Akamai / Fastly CDN Edge"]
-    end
-
-    Modal -->|"1. Request signature"| SignAPI
-    SignAPI -->|"2. HMAC signed credentials"| Modal
-    Modal -->|"3. Direct stream upload"| Ingest
-    Modal -.->|"Fallback: server stream"| UploadAPI
-    UploadAPI --> SDK
-    SDK --> Ingest
-    Ingest --> Storage
-    Storage --> Transforms
-    Storage --> VisionAI
-    Transforms --> EdgeCDN
-    EdgeCDN -->|"4. Sub-50ms edge delivery"| UI
-```
-
----
-
-### Signed Direct Upload Flow
-
-Bypasses the traditional serverless 4.5 MB request body limit by authorizing the browser to upload directly to Cloudinary's ingestion nodes.
-
-```text
-Creator / Browser                       Next.js Server                   Cloudinary CDN
-       |                                       |                               |
-       |  1. Select media file                 |                               |
-       |                                       |                               |
-       |  2. POST /api/media/sign -----------> |                               |
-       |                                       |  Generate HMAC SHA-1 signature|
-       |  <----- { signature, apiKey, ts } --- |                               |
-       |                                                                       |
-       |  3. POST direct stream to Cloudinary API ---------------------------> |
-       |     (Bypasses serverless 4.5 MB payload limits completely!)           |
-       |                                                                       |
-       |                                       |  Validate & Ingest asset      |
-       |  <-------- { public_id, secure_url, format, bytes } ----------------- |
-       |                                                                       |
-       |  4. Synthesize optimized delivery URLs (f_auto, q_auto, crop)         |
-       |  5. Dispatch to reactive store -> Instant live feed update            |
-       v                                                                       v
-```
+## ⚡ How Cloudinary Powers MediaGram
 
 ```mermaid
 sequenceDiagram
     autonumber
-    actor Creator as User / Browser
-    participant Server as Next.js Server (/api/media/sign)
-    participant Cloudinary as Cloudinary CDN (api.cloudinary.com)
-    participant Store as Reactive Store & Live Feed
+    actor User as Creator / Browser
+    participant App as Next.js Server (/api/media/sign)
+    participant Cloud as Cloudinary Global CDN
+    participant Feed as Live Feed & Reels UI
 
-    Creator->>Server: POST /api/media/sign (filename, folder, timestamp)
-    Server-->>Creator: Return HMAC SHA-1 signature, apiKey, timestamp
-    Note over Creator,Cloudinary: Direct upload bypasses 4.5 MB serverless limits!
-    Creator->>Cloudinary: POST multipart stream directly to CDN endpoint
-    Cloudinary-->>Creator: Return { public_id, secure_url, format, bytes }
-    Creator->>Store: Synthesize optimized URLs (f_auto, q_auto, crop) & dispatch
-    Store-->>Creator: Live Feed, Reels, and Profile update immediately
+    User->>App: 1. Request signed upload token
+    App-->>User: 2. Return HMAC SHA-1 signature & timestamp
+    Note over User,Cloud: Direct upload completely bypasses serverless payload limits!
+    User->>Cloud: 3. Direct multipart upload stream
+    Cloud-->>User: 4. Return asset metadata (public_id, secure_url, format)
+    User->>Feed: 5. Construct on-the-fly transform URLs (f_auto, q_auto, crop)
+    Feed-->>User: 6. Fast sub-50ms edge delivery to users worldwide
 ```
 
----
+### Key Cloudinary Transformations Used
 
-### Cloudinary Transformation Pipeline
-
-A single high-resolution master asset serves all form factors across the application with zero pre-rendering overhead:
-
-```text
-Single Master Asset (e.g., 24 MB RAW 4K Video)
-         │
-         ▼
-Cloudinary Real-Time Transform Engine (Global Edge)
-         │
-         ├─► Feed Viewport (mobile)  ───► w_1080,c_fill,q_auto,f_auto     ───► ~18 KB WebP / AVIF
-         ├─► Reels (9:16 vertical)   ───► q_auto,f_auto,vc_h264           ───► Adaptive MP4 Stream
-         ├─► Video Poster Fallback   ───► so_0,w_720,c_fill,f_jpg,q_auto  ───► ~12 KB Instant JPEG
-         └─► Profile Avatar          ───► w_300,h_300,c_fill,g_face,r_max ───► ~8 KB Circular PNG
+```
+Master Asset (Image or 4K Video)
+   │
+   ├──► Feed Viewport       ──► c_fill,w_1080,q_auto,f_auto      (Optimized WebP/AVIF)
+   ├──► Reels (9:16)        ──► q_auto,f_auto,vc_h264            (Adaptive mobile stream)
+   ├──► Video Poster        ──► so_0,w_720,c_fill,f_jpg,q_auto   (Instant first-frame preview)
+   └──► Profile Avatar      ──► c_fill,g_face,w_300,h_300,r_max  (Face-centered circular crop)
 ```
 
----
-
-### VideoCoordinator Singleton
-
-The `VideoCoordinator` is a centralized media playback orchestrator that ensures deterministic, high-performance video playback across all feeds.
-
-```text
-+-------------------------------------------------------------------------+
-|                      VideoCoordinator (Global Singleton)                |
-+-------------------------------------------------------------------------+
-|  Rules Enforced:                                                        |
-|  1. Strictly ONE video plays at any time across ALL feeds               |
-|  2. Only the video >=30% visible and closest to viewport center plays   |
-|  3. Active video plays UNMUTED (sound preference persisted)             |
-|  4. All other videos immediately pause + mute                           |
-|  5. Scroll -> deactivate current, activate new visible video            |
-|  6. Browser autoplay policy: starts muted, unmutes on first user gesture|
-|  7. Manual pause is RESPECTED -- periodic checks never override pause   |
-+-------------------------------------------------------------------------+
-|  Mechanism:                                                             |
-|  • IntersectionObserver (scroll tracking with precise thresholds)       |
-|  • requestAnimationFrame (RAF-throttled scoring for 60fps smoothness)   |
-|  • 600ms safety interval (desync prevention during rapid scrolling)     |
-|  • isManuallyPaused flag (respects explicit user pause actions)         |
-+-------------------------------------------------------------------------+
-```
-
-#### Rules Enforced:
-1. **Strict Single-Video Concurrency:** Strictly **ONE** video plays at any moment across the entire application (Feed, Reels, Explore).
-2. **Dominant Visibility Scoring:** Only the video that is at least **30% visible** and closest to the viewport's vertical center is designated active.
-3. **Persisted Unmuted Playback:** The active video plays unmuted once the user interacts with audio, preserving volume state across scrolls.
-4. **Instant Mutual Exclusion:** Activating any video instantly pauses and mutes all others.
-5. **Scroll-Driven Focus Handoff:** Scrolling automatically transfers playback focus to the newly centered video item.
-6. **Browser Autoplay Compliance:** Initializes muted to satisfy browser autoplay restrictions, seamlessly unmuting upon the first user interaction.
-7. **Manual Pause Integrity:** Explicit user pause sets an `isManuallyPaused` flag; background periodic sweeps will **never** override the user's deliberate pause.
-
----
-
-## ☁️ Cloudinary as the Central Backbone
-
-### User Media Folder Partitioning
-
-Every uploaded asset is automatically organized into a deterministic, multi-tenant hierarchy:
-
-```text
-cloudinary/
-└── mediagram/
-    └── users/
-        └── {userId}/
-            ├── posts/
-            │   ├── images/
-            │   └── videos/
-            ├── reels/
-            ├── stories/
-            └── profile/
-```
-
-- **Isolation:** Prevents media collision across users.
-- **Security:** Simplifies per-user permissions and access control.
-- **Lifecycle Management:** Enables atomic GDPR / user data removal in a single call.
-
----
-
-### Transformation URL Reference
-
-| Context | Cloudinary URL Transformation | Output & Benefit |
-|---|---|---|
-| **Feed Image** | `c_fill,q_auto,f_auto,w_1080` | Smart crop to feed width, AVIF/WebP auto-selection |
-| **Square Thumbnail** | `c_fill,w_600,h_600,q_auto,f_auto` | Pixel-perfect 1:1 ratio with perceptual compression |
-| **Reels Video** | `q_auto,f_auto` | Adaptive bitrate streaming tuned for mobile viewports |
-| **Video Poster** | `so_0,w_720,c_fill,f_jpg,q_auto` | First-frame snapshot JPEG for instant visual preview |
-| **User Avatar** | `c_fill,g_face,w_300,h_300,r_max,q_auto,f_auto` | AI facial recognition centering with circular mask |
-
----
-
-### AI Context & Multimodal Engine
-
-Located in [`src/lib/cloudinary-ai.ts`](./src/lib/cloudinary-ai.ts), the engine processes media upon selection:
-- **Taxonomic Concept Extraction:** Detects scene types (street photography, neon cyberpunk, wildlife, travel, fitness).
-- **Multi-Tone Caption Generation:** Outputs 4 distinct ready-to-publish captions (Cinematic, Viral, Aesthetic, Humor).
-- **Confidence-Ranked Tags:** Automatically tags media with high-confidence keywords.
-- **Audio Pairing:** Recommends trending soundtrack styles matched to the media's mood.
+- **User Media Compartmentalization:** Media is partitioned into user-isolated folders:  
+  `mediagram/users/{userId}/{posts|reels|stories|profile}` for secure multi-tenancy and clean asset lifecycle management.
 
 ---
 
 ## 🛠️ Tech Stack
 
-| Layer | Technology | Purpose |
-|---|---|---|
-| **Framework** | Next.js 16.3.8 (React 19, Turbopack) | Server & Client Full-Stack Framework |
-| **Language** | TypeScript 5 | End-to-end type safety |
-| **Styling** | Vanilla CSS + Tailwind CSS v4 | Studio cyber-glassmorphism design system |
-| **Icons** | Lucide React | Modern iconography |
-| **Animations** | Framer Motion + CSS Keyframes | Fluid 60fps micro-interactions |
-| **Media Backbone** | Cloudinary Node.js SDK v2 + REST Ingestion API | Storage, transforms, signed uploads, AI |
-| **State Management** | Reactive Store (`store.ts`) with LocalStorage | Zero-latency instant state persistence |
-| **Video Playback** | Custom `VideoCoordinator` Singleton | Single-playback enforcement & scroll sync |
-| **Deployment** | Vercel | Global edge CDN & serverless functions |
-
----
-
-## 📂 Project Directory Structure
-
-```text
-mediagram/
-├── src/
-│   ├── app/                        # Next.js App Router
-│   │   ├── page.tsx                # Home Feed with infinite stream
-│   │   ├── reels/page.tsx          # Full-height vertical Reels engine
-│   │   ├── explore/page.tsx        # Discovery & search grid
-│   │   ├── library/page.tsx        # Cloudinary Developer API Hub
-│   │   ├── profile/[username]/     # Dynamic creator profile pages
-│   │   ├── messages/page.tsx       # Direct messaging interface
-│   │   ├── notifications/page.tsx  # Activity notification center
-│   │   ├── admin/page.tsx          # Admin Command Center & observability
-│   │   ├── settings/page.tsx       # User preference settings
-│   │   ├── layout.tsx              # Root app layout & global navigation
-│   │   ├── globals.css             # Glassmorphism design tokens & styles
-│   │   └── api/
-│   │       ├── media/sign/         # HMAC cryptographic signature API
-│   │       └── media/upload/       # Server-side upload fallback pipeline
-│   │
-│   ├── components/
-│   │   ├── feed/                   # PostCard, StoriesBar, StoryViewerModal
-│   │   ├── reels/                  # ReelsFeed 9:16 vertical video player
-│   │   ├── navigation/             # AppShell, Sidebar, MobileNav
-│   │   ├── glass/                  # GlassCard, GlassAvatar, GlassButton
-│   │   ├── upload/                 # CreatePostModal with AI assistant
-│   │   ├── explore/                # Search Modal, Explore Grid
-│   │   ├── profile/                # ProfileView, ProfileHeader, Stats
-│   │   ├── library/                # CloudinaryHub, AssetInspector
-│   │   └── admin/                  # AdminPanel, MetricsCards
-│   │
-│   └── lib/
-│       ├── store.ts                # Reactive singleton store with mock DB
-│       ├── types.ts                # Full TypeScript interface definitions
-│       ├── cloudinary.ts           # Client URL transformation generators
-│       ├── cloudinary-server.ts    # Server-side Cloudinary SDK wrapper
-│       ├── cloudinary-ai.ts        # AI Context & Caption Engine
-│       ├── video-coordinator.ts    # VideoCoordinator singleton
-│       ├── video-library.ts        # 33 curated Cloudinary reel assets
-│       ├── recommendation.ts       # ML recommendation scoring engine
-│       ├── seed-data.ts            # High-fidelity mock posts & stories
-│       └── user-generator.ts       # Procedural generator for 1,000+ accounts
-│
-├── prisma/schema.prisma            # Database schema definition
-├── public/                         # Static icons & branding assets
-├── next.config.ts                  # Next.js runtime configuration
-├── vercel.json                     # Vercel deployment routing & headers
-├── CLOUDINARY_HACKATHON_REPORT.md  # Comprehensive hackathon submission report
-└── README.md                       # Project documentation
-```
+- **Framework:** [Next.js 16](https://nextjs.org/) (App Router, Turbopack) & [React 19](https://react.dev/)
+- **Media Engine:** [Cloudinary Node.js SDK v2](https://cloudinary.com/) & Direct CDN Ingestion API
+- **Language:** [TypeScript 5](https://www.typescriptlang.org/)
+- **Styling:** [Tailwind CSS v4](https://tailwindcss.com/) & Vanilla CSS (Studio cyber-glassmorphism theme)
+- **Icons & Motion:** [Lucide Icons](https://lucide.dev/) & [Framer Motion](https://motion.dev/)
+- **State Management:** Reactive Store with zero-latency local persistence (preloaded with 1,000+ mock users and 33 HD reel presets)
+- **Deployment:** [Vercel](https://vercel.com/)
 
 ---
 
 ## 🚀 Getting Started
 
-### Prerequisites
-
-- **Node.js** 18.x or later
-- **npm** or **yarn**
-- A **Cloudinary** account (free tier works perfectly)
-
-### Installation
-
+### 1. Clone the Repository
 ```bash
-# 1. Clone the repository
 git clone https://github.com/gagankalyan39/mediagram.git
 cd mediagram
+```
 
-# 2. Install dependencies
+### 2. Install Dependencies
+```bash
 npm install
 ```
 
-### Development Server
-
-```bash
-npm run dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) in your browser.
-
-> **Note:** The application includes a self-contained reactive data store with 1,000+ generated users and 33 pre-loaded Cloudinary video reels, allowing it to function completely out-of-the-box without requiring a separate database setup.
-
----
-
-## 🔐 Environment Variables
-
-Create a `.env.local` file in the root directory:
-
+### 3. Configure Environment Variables
+Create a `.env.local` file in the project root:
 ```env
-# Cloudinary Credentials (Required for uploads & signed URLs)
 NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=your_cloud_name
 CLOUDINARY_API_KEY=your_api_key
 CLOUDINARY_API_SECRET=your_api_secret
-
-# Optional: Database URL (for Prisma production persistence)
-DATABASE_URL=your_database_url
 ```
 
-### Obtaining Your Cloudinary Credentials:
-1. Log in to your [Cloudinary Console](https://cloudinary.com/console).
-2. Navigate to **Dashboard -> API Keys**.
-3. Copy your **Cloud Name**, **API Key**, and **API Secret**.
+> **Note:** Obtain credentials from the [Cloudinary Console](https://cloudinary.com/console). The application includes pre-loaded demo reels and mock accounts, so it runs completely out-of-the-box even before adding credentials!
+
+### 4. Run the Development Server
+```bash
+npm run dev
+```
+Open **[http://localhost:3000](http://localhost:3000)** in your browser.
 
 ---
 
-## 🚢 Deployment
+## 📁 Project Structure
 
-### Deploy to Vercel
-
-1. Push your repository to GitHub.
-2. Import the project in the [Vercel Dashboard](https://vercel.com/new).
-3. Set the environment variables in **Project Settings -> Environment Variables**:
-   - `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME`
-   - `CLOUDINARY_API_KEY`
-   - `CLOUDINARY_API_SECRET`
-4. Leave the root directory as `./` and build command as `npm run build`.
-5. Click **Deploy**.
-
-> **Live Production URL:** [https://mediagram-4lpf.vercel.app/](https://mediagram-4lpf.vercel.app/)
-
----
-
-## 📈 Performance Metrics
-
-| Benchmark | Value | Context |
-|---|---|---|
-| **Cloudinary Bandwidth Savings** | **64.5%** | Average reduction across images and videos via `f_auto` + `q_auto` |
-| **Total Media Data Saved** | **14.2 GB** | Measured across all mock feed and reel impressions |
-| **Video Poster Edge Latency** | **< 50ms TTFB** | Instant first-frame preview served via Cloudinary edge CDN |
-| **Mock Creator Community** | **1,000+** | Procedurally generated accounts with bios, avatars, and metrics |
-| **Curated HD Video Reels** | **33 Assets** | Production-ready vertical reels hosted directly on Cloudinary |
-| **Client Render Rate** | **60 FPS** | Smooth GPU-accelerated snap-scrolling and feed animations |
-
----
-
-## 🏆 Hackathon Alignment
-
-| Judging Criteria | MediaGram Implementation |
-|---|---|
-| **Depth of Cloudinary Integration** | Signed direct CDN ingestion, on-the-fly transformations, dynamic video posters, user folder partitioning, AI semantic analysis, and a real-time developer API Hub. |
-| **Technical Architecture** | Solves serverless payload timeouts with dual-pipeline uploads; deterministic singleton video orchestration; zero-hydration-mismatch reactive store. |
-| **Real-World Business Impact** | 64.5% egress bandwidth reduction drastically lowers infrastructure costs while delivering lightning-fast mobile feed loading. |
-| **Design & User Experience** | Glassmorphism design system, smooth 9:16 vertical reels with gesture recognition, and accessibility-first contrast ratios. |
-| **Completeness & Polish** | Fully operational live deployment, 1,000+ realistic creators, 33 video reels, multi-tone AI captions, and complete Instagram feature parity. |
-
----
-
-## 📄 License
-
-This project is licensed under the [MIT License](LICENSE).
+```text
+mediagram/
+├── src/
+│   ├── app/
+│   │   ├── page.tsx                # Dynamic Home Feed & Stories
+│   │   ├── reels/page.tsx          # Full-screen 9:16 vertical Reels engine
+│   │   ├── explore/page.tsx        # Discovery masonry grid & search
+│   │   ├── library/page.tsx        # Cloudinary Developer API Hub
+│   │   ├── admin/page.tsx          # Bandwidth savings & metrics center
+│   │   ├── profile/[username]/     # User profile & media tabs
+│   │   └── api/media/sign/         # HMAC signature generation for uploads
+│   ├── components/
+│   │   ├── feed/                   # PostCard, StoriesBar, StoryViewer
+│   │   ├── reels/                  # ReelsFeed vertical video component
+│   │   ├── upload/                 # CreatePostModal with AI assistant
+│   │   └── library/                # AssetInspector & transformation testbed
+│   └── lib/
+│       ├── cloudinary.ts           # Dynamic client transformation helpers
+│       ├── cloudinary-server.ts    # Cloudinary Node.js SDK server wrapper
+│       ├── cloudinary-ai.ts        # Multimodal AI caption & context engine
+│       ├── video-coordinator.ts    # Singleton audio/video playback coordinator
+│       └── video-library.ts        # 33 curated Cloudinary HD video reels
+├── CLOUDINARY_HACKATHON_REPORT.md  # Detailed architecture & hackathon report
+└── README.md                       # Project documentation
+```
 
 ---
 
 <div align="center">
 
-Built with ❤️ using **Next.js** & **Cloudinary**
+**Built for the "Pixel to Product" Hackathon**  
+*Organized by [Cloudinary](https://cloudinary.com/) in partnership with [HackIndia](https://hackindia.org/)*
 
-**[Live Demo](https://mediagram-4lpf.vercel.app/)** • **[Hackathon Report](./CLOUDINARY_HACKATHON_REPORT.md)** • **[GitHub Repository](https://github.com/gagankalyan39/mediagram)**
+[🚀 **Live Demo**](https://mediagram-4lpf.vercel.app/) • [📋 **Hackathon Report**](CLOUDINARY_HACKATHON_REPORT.md) • [💻 **GitHub Repository**](https://github.com/gagankalyan39/mediagram)
 
 </div>
