@@ -5,12 +5,12 @@
 ### Next-Generation Social Media & Short-Form Video Platform  
 **Powered End-to-End by Cloudinary**
 
-[![Hackathon](https://img.shields.io/badge/Hackathon-Pixel%20to%20Product-0052FF?style=for-the-badge&logo=cloudinary&logoColor=white)](https://hackindia.org/)
-[![Partner](https://img.shields.io/badge/Partner-HackIndia-FF6B00?style=for-the-badge)](https://hackindia.org/)
-[![Cloudinary](https://img.shields.io/badge/Cloudinary-Media%20Cloud-3448C5?style=for-the-badge&logo=cloudinary)](https://cloudinary.com/)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-mediagram--4lpf.vercel.app-10B981?style=for-the-badge&logo=vercel&logoColor=white)](https://mediagram-4lpf.vercel.app/)
 [![Next.js](https://img.shields.io/badge/Next.js-16.3-black?style=for-the-badge&logo=next.js)](https://nextjs.org/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react)](https://react.dev/)
+[![Cloudinary](https://img.shields.io/badge/Cloudinary-Media%20Cloud-3448C5?style=for-the-badge&logo=cloudinary)](https://cloudinary.com/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=for-the-badge&logo=typescript)](https://www.typescriptlang.org/)
+[![Vercel](https://img.shields.io/badge/Deployed-Vercel-000000?style=for-the-badge&logo=vercel)](https://mediagram-4lpf.vercel.app/)
 
 <br />
 
@@ -20,9 +20,6 @@
 [![Instant Live Preview](https://img.shields.io/badge/⚡%20INSTANT%20LIVE%20PREVIEW-TRY%20NOW-6200EA?style=for-the-badge&logo=googlechrome&logoColor=white)](https://mediagram-4lpf.vercel.app/)
 
 <br />
-
-### 🏆 Project Prepared for the **"Pixel to Product"** Hackathon
-Presented by [**Cloudinary**](https://cloudinary.com/) in partnership with [**HackIndia**](https://hackindia.org/)
 
 </div>
 
@@ -199,9 +196,6 @@ mediagram/
 ### 🚀 Ready to explore?
 # **[▶ Launch MediaGram Live Application](https://mediagram-4lpf.vercel.app/)**
 
-**Built for the "Pixel to Product" Hackathon**  
-*Organized by [Cloudinary](https://cloudinary.com/) in partnership with [HackIndia](https://hackindia.org/)*
-
-[🚀 **Live Demo**](https://mediagram-4lpf.vercel.app/) • [📋 **Hackathon Report**](CLOUDINARY_HACKATHON_REPORT.md) • [💻 **GitHub Repository**](https://github.com/gagankalyan39/mediagram)
+[🚀 **Live Demo**](https://mediagram-4lpf.vercel.app/) • [📋 **Architecture Report**](CLOUDINARY_HACKATHON_REPORT.md) • [💻 **GitHub Repository**](https://github.com/gagankalyan39/mediagram)
 
 </div>
