@@ -20,7 +20,7 @@
 
 🚀 **[https://mediagram-4lpf.vercel.app/](https://mediagram-4lpf.vercel.app/)**
 
-Experience the live application with 1,000+ accounts, 33 vertical video reels, AI caption assistant, and full Cloudinary media pipeline.
+Experience the live application and full Cloudinary media pipeline.
 
 ---
 
