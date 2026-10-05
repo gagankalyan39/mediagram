@@ -174,11 +174,13 @@ class VideoCoordinator {
 
       this.notify();
     } else if (bestId && this.activeId === bestId) {
-      // Ensure the active video is actually playing if not paused
+      // Ensure the active video is actually playing ONLY if the user hasn't manually paused it
       const cur = this.entries.get(bestId);
       if (cur && !cur.isManuallyPaused() && cur.video.paused) {
+        // Only restart if not manually paused — respects user's explicit pause action
         cur.onActivate(this.soundEnabled);
       }
+      // If manually paused, do NOT restart — leave it paused until the user clicks play
     }
   }
 

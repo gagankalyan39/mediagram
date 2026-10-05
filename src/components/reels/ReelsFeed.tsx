@@ -372,7 +372,7 @@ export function ReelsFeed({
                 {/* Like Button */}
                 <button
                   type="button"
-                  onClick={() => onToggleLike(reel.id)}
+                  onClick={(e) => { e.stopPropagation(); onToggleLike(reel.id); }}
                   className="flex flex-col items-center gap-1 group cursor-pointer touch-manipulation select-none active:scale-110"
                 >
                   <div className="p-3 rounded-full bg-black/50 backdrop-blur-md border border-white/10 group-hover:scale-110 group-hover:bg-black/70 transition-all">
@@ -392,7 +392,7 @@ export function ReelsFeed({
                 {/* Comments Button */}
                 <button
                   type="button"
-                  onClick={() => setActiveCommentReel(reel)}
+                  onClick={(e) => { e.stopPropagation(); setActiveCommentReel(reel); }}
                   className="flex flex-col items-center gap-1 group cursor-pointer touch-manipulation select-none active:scale-110"
                 >
                   <div className="p-3 rounded-full bg-black/50 backdrop-blur-md border border-white/10 group-hover:scale-110 group-hover:bg-black/70 transition-all">
@@ -406,7 +406,8 @@ export function ReelsFeed({
                 {/* Share Button */}
                 <button
                   type="button"
-                  onClick={() => {
+                  onClick={(e) => {
+                    e.stopPropagation();
                     if (navigator.share) {
                       navigator.share({ title: reel.caption, url: window.location.href });
                     }
@@ -424,7 +425,7 @@ export function ReelsFeed({
                 {/* Bookmark Button */}
                 <button
                   type="button"
-                  onClick={() => onToggleBookmark(reel.postId)}
+                  onClick={(e) => { e.stopPropagation(); onToggleBookmark(reel.postId); }}
                   className="p-3 rounded-full bg-black/50 backdrop-blur-md border border-white/10 hover:scale-110 active:scale-110 transition-all cursor-pointer touch-manipulation select-none"
                 >
                   <Bookmark

@@ -61,6 +61,8 @@ export function PostCard({
   const [isPlaying, setIsPlaying] = useState(false);
   const [isSoundOn, setIsSoundOn] = useState(() => videoCoordinator.isSoundOn());
   const isManuallyPausedRef = useRef<boolean>(false);
+  // Tracks if this is a fresh scroll-in activation (should reset to 0) vs user resume
+  const isScrollActivationRef = useRef<boolean>(true);
 
   // Sync sound preference across all posts
   useEffect(() => {
@@ -114,10 +116,13 @@ export function PostCard({
       video: video,
       onActivate: (unmuted) => {
         setIsPlaying(true);
-        // Restart video from the beginning as requested by user
-        try {
-          video.currentTime = 0;
-        } catch (_) {}
+        // Only restart from beginning on scroll-in activation, NOT when user manually resumes
+        if (isScrollActivationRef.current) {
+          try {
+            video.currentTime = 0;
+          } catch (_) {}
+        }
+        isScrollActivationRef.current = false; // subsequent activations are not scroll-fresh
         video.loop = true;
         video.playsInline = true;
         if (unmuted) {
@@ -140,6 +145,7 @@ export function PostCard({
         try {
           video.currentTime = 0; // Rewind to 0 so when scrolled back to, it is at the beginning
         } catch (_) {}
+        isScrollActivationRef.current = true; // Next activation is a fresh scroll-in
         setIsPlaying(false);
         video.muted = true;
       },
@@ -156,7 +162,12 @@ export function PostCard({
     const video = videoRef.current;
     if (!video) return;
     isManuallyPausedRef.current = false;
-    videoCoordinator.setActiveManually(post.id);
+    // Don't reset to zero when user clicks play — resume from current position
+    isScrollActivationRef.current = false;
+    // Resume directly instead of routing through coordinator to avoid currentTime reset
+    video.muted = !videoCoordinator.isSoundOn();
+    video.volume = videoCoordinator.isSoundOn() ? 1.0 : 0;
+    video.play().catch(() => {});
     setIsPlaying(true);
   };
 
