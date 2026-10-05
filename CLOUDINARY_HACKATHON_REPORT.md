@@ -7,7 +7,9 @@
 **Project Name:** MediaGram (BeeSocial)  
 **Hackathon Track:** Cloudinary API & Media Intelligence  
 **Core Purpose:** Next-Generation Social Media & Short-Form Video Platform Powered End-to-End by Cloudinary  
-**Live URL / Development Route:** Localhost Next.js 16 (Turbopack) Full-Stack Application  
+**Live Deployed Application:** [https://mediagram-4lpf.vercel.app](https://mediagram-4lpf.vercel.app)  
+**Demo Video & Presentation Folder (OneDrive):** [MediaGram Recorded Video & Report](https://onedrive.live.com/?id=%2Fpersonal%2F819357592a69827a%2FDocuments%2FDesktop%2FMediaGram%20Video&listurl=%2Fpersonal%2F819357592a69827a%2FDocuments&e=tH9Zan&redeem=aHR0cHM6Ly8xZHJ2Lm1zL2YvYy84MTkzNTc1OTJhNjk4MjdhL0lnRE5JYnc0eUkydlNKaHlyWUtVY2tIZ0FZTi1tcVJBRjA0UVp4NWRCRFVDS1FvP2U9dEg5WmFu&ga=1)  
+**GitHub Repository:** [https://github.com/gagankalyan39/mediagram](https://github.com/gagankalyan39/mediagram)  
 
 MediaGram is a social media web application designed to solve the critical challenges of media management, video delivery latency, and content accessibility. It elevates **Cloudinary** from a simple storage bucket into the **central intelligence and delivery backbone** of the entire application.
 

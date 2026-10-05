@@ -6,6 +6,7 @@
 **Powered End-to-End by Cloudinary**
 
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-mediagram--4lpf.vercel.app-10B981?style=for-the-badge&logo=vercel&logoColor=white)](https://mediagram-4lpf.vercel.app/)
+[![Demo Video & Report](https://img.shields.io/badge/Demo%20Video%20%26%20Report-OneDrive-0078D4?style=for-the-badge&logo=microsoftonedrive&logoColor=white)](https://onedrive.live.com/?id=%2Fpersonal%2F819357592a69827a%2FDocuments%2FDesktop%2FMediaGram%20Video&listurl=%2Fpersonal%2F819357592a69827a%2FDocuments&e=tH9Zan&redeem=aHR0cHM6Ly8xZHJ2Lm1zL2YvYy84MTkzNTc1OTJhNjk4MjdhL0lnRE5JYnc0eUkydlNKaHlyWUtVY2tIZ0FZTi1tcVJBRjA0UVp4NWRCRFVDS1FvP2U9dEg5WmFu&ga=1)
 [![Next.js](https://img.shields.io/badge/Next.js-16.3-black?style=for-the-badge&logo=next.js)](https://nextjs.org/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react)](https://react.dev/)
 [![Cloudinary](https://img.shields.io/badge/Cloudinary-Media%20Cloud-3448C5?style=for-the-badge&logo=cloudinary)](https://cloudinary.com/)
@@ -17,6 +18,7 @@
 # 🚀 [OPEN LIVE APP: mediagram-4lpf.vercel.app](https://mediagram-4lpf.vercel.app/) 🚀
 
 [![Click to Open Live Demo](https://img.shields.io/badge/▶%20CLICK%20TO%20OPEN%20LIVE%20APP-mediagram--4lpf.vercel.app-00C853?style=for-the-badge&logo=vercel&logoColor=white)](https://mediagram-4lpf.vercel.app/)
+[![Watch Demo Video & Report](https://img.shields.io/badge/📹%20WATCH%20DEMO%20VIDEO%20%26%20REPORT-ONEDRIVE-0078D4?style=for-the-badge&logo=microsoftonedrive&logoColor=white)](https://onedrive.live.com/?id=%2Fpersonal%2F819357592a69827a%2FDocuments%2FDesktop%2FMediaGram%20Video&listurl=%2Fpersonal%2F819357592a69827a%2FDocuments&e=tH9Zan&redeem=aHR0cHM6Ly8xZHJ2Lm1zL2YvYy84MTkzNTc1OTJhNjk4MjdhL0lnRE5JYnc0eUkydlNKaHlyWUtVY2tIZ0FZTi1tcVJBRjA0UVp4NWRCRFVDS1FvP2U9dEg5WmFu&ga=1)
 [![Instant Live Preview](https://img.shields.io/badge/⚡%20INSTANT%20LIVE%20PREVIEW-TRY%20NOW-6200EA?style=for-the-badge&logo=googlechrome&logoColor=white)](https://mediagram-4lpf.vercel.app/)
 
 <br />
@@ -31,6 +33,12 @@
 >
 > *No configuration required! Fully deployed on Vercel's global edge network.*  
 > *Test **1,000+ mock creator profiles**, **33 HD Cloudinary vertical reels**, **4-tone AI captions**, and **direct signed CDN media uploads** live.*
+
+> [!TIP]
+> ## 📹 **Recorded Demo Video Walkthrough & Project Report**
+> ### 👉 **OneDrive Link:** [**MediaGram Recorded Video & Report Folder (OneDrive)**](https://onedrive.live.com/?id=%2Fpersonal%2F819357592a69827a%2FDocuments%2FDesktop%2FMediaGram%20Video&listurl=%2Fpersonal%2F819357592a69827a%2FDocuments&e=tH9Zan&redeem=aHR0cHM6Ly8xZHJ2Lm1zL2YvYy84MTkzNTc1OTJhNjk4MjdhL0lnRE5JYnc0eUkydlNKaHlyWUtVY2tIZ0FZTi1tcVJBRjA0UVp4NWRCRFVDS1FvP2U9dEg5WmFu&ga=1) 👈
+>
+> *Watch the recorded walkthrough video demonstrating Cloudinary features and access the project presentation report.*
 
 ---
 
@@ -157,7 +165,6 @@ CLOUDINARY_API_SECRET=your_api_secret
 ```bash
 npm run dev
 ```
-Open **[http://localhost:3000](http://localhost:3000)** in your browser.
 
 ---
 
@@ -191,11 +198,21 @@ mediagram/
 
 ---
 
+## 📹 Demo Video & Project Submission Report
+
+- 🎥 **Recorded Walkthrough Video & Presentation Folder (OneDrive):**  
+  👉 [**Watch Demo Video & View Report on OneDrive**](https://onedrive.live.com/?id=%2Fpersonal%2F819357592a69827a%2FDocuments%2FDesktop%2FMediaGram%20Video&listurl=%2Fpersonal%2F819357592a69827a%2FDocuments&e=tH9Zan&redeem=aHR0cHM6Ly8xZHJ2Lm1zL2YvYy84MTkzNTc1OTJhNjk4MjdhL0lnRE5JYnc0eUkydlNKaHlyWUtVY2tIZ0FZTi1tcVJBRjA0UVp4NWRCRFVDS1FvP2U9dEg5WmFu&ga=1)
+- 📄 **Full Technical Architecture Specification:** [CLOUDINARY_HACKATHON_REPORT.md](CLOUDINARY_HACKATHON_REPORT.md)
+- 🌐 **Live Deployed Web Application:** [https://mediagram-4lpf.vercel.app](https://mediagram-4lpf.vercel.app/)
+
+---
+
 <div align="center">
 
 ### 🚀 Ready to explore?
 # **[▶ Launch MediaGram Live Application](https://mediagram-4lpf.vercel.app/)**
 
-[🚀 **Live Demo**](https://mediagram-4lpf.vercel.app/) • [📋 **Architecture Report**](CLOUDINARY_HACKATHON_REPORT.md) • [💻 **GitHub Repository**](https://github.com/gagankalyan39/mediagram)
+[🚀 **Live Demo**](https://mediagram-4lpf.vercel.app/) • [📹 **Demo Video & Report (OneDrive)**](https://onedrive.live.com/?id=%2Fpersonal%2F819357592a69827a%2FDocuments%2FDesktop%2FMediaGram%20Video&listurl=%2Fpersonal%2F819357592a69827a%2FDocuments&e=tH9Zan&redeem=aHR0cHM6Ly8xZHJ2Lm1zL2YvYy84MTkzNTc1OTJhNjk4MjdhL0lnRE5JYnc0eUkydlNKaHlyWUtVY2tIZ0FZTi1tcVJBRjA0UVp4NWRCRFVDS1FvP2U9dEg5WmFu&ga=1) • [📋 **Architecture Report**](CLOUDINARY_HACKATHON_REPORT.md) • [💻 **GitHub Repository**](https://github.com/gagankalyan39/mediagram)
 
 </div>
+
