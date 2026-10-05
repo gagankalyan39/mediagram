@@ -7,20 +7,33 @@
 
 [![Hackathon](https://img.shields.io/badge/Hackathon-Pixel%20to%20Product-0052FF?style=for-the-badge&logo=cloudinary&logoColor=white)](https://hackindia.org/)
 [![Partner](https://img.shields.io/badge/Partner-HackIndia-FF6B00?style=for-the-badge)](https://hackindia.org/)
-[![Live Demo](https://img.shields.io/badge/Live%20Demo-mediagram--4lpf.vercel.app-10B981?style=for-the-badge&logo=vercel&logoColor=white)](https://mediagram-4lpf.vercel.app/)
+[![Cloudinary](https://img.shields.io/badge/Cloudinary-Media%20Cloud-3448C5?style=for-the-badge&logo=cloudinary)](https://cloudinary.com/)
 [![Next.js](https://img.shields.io/badge/Next.js-16.3-black?style=for-the-badge&logo=next.js)](https://nextjs.org/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react)](https://react.dev/)
-[![Cloudinary](https://img.shields.io/badge/Cloudinary-Media%20Cloud-3448C5?style=for-the-badge&logo=cloudinary)](https://cloudinary.com/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=for-the-badge&logo=typescript)](https://www.typescriptlang.org/)
 
----
+<br />
+
+# 🚀 [OPEN LIVE APP: mediagram-4lpf.vercel.app](https://mediagram-4lpf.vercel.app/) 🚀
+
+[![Click to Open Live Demo](https://img.shields.io/badge/▶%20CLICK%20TO%20OPEN%20LIVE%20APP-mediagram--4lpf.vercel.app-00C853?style=for-the-badge&logo=vercel&logoColor=white)](https://mediagram-4lpf.vercel.app/)
+[![Instant Live Preview](https://img.shields.io/badge/⚡%20INSTANT%20LIVE%20PREVIEW-TRY%20NOW-6200EA?style=for-the-badge&logo=googlechrome&logoColor=white)](https://mediagram-4lpf.vercel.app/)
+
+<br />
 
 ### 🏆 Project Prepared for the **"Pixel to Product"** Hackathon
 Presented by [**Cloudinary**](https://cloudinary.com/) in partnership with [**HackIndia**](https://hackindia.org/)
 
-🚀 **[Launch Live Web Application (mediagram-4lpf.vercel.app)](https://mediagram-4lpf.vercel.app/)** 🚀
-
 </div>
+
+---
+
+> [!IMPORTANT]
+> ## 🌟 **Experience the Live Web Application**
+> ### 👉 **Direct Link:** [**https://mediagram-4lpf.vercel.app**](https://mediagram-4lpf.vercel.app/) 👈
+>
+> *No configuration required! Fully deployed on Vercel's global edge network.*  
+> *Test **1,000+ mock creator profiles**, **33 HD Cloudinary vertical reels**, **4-tone AI captions**, and **direct signed CDN media uploads** live.*
 
 ---
 
@@ -182,6 +195,9 @@ mediagram/
 ---
 
 <div align="center">
+
+### 🚀 Ready to explore?
+# **[▶ Launch MediaGram Live Application](https://mediagram-4lpf.vercel.app/)**
 
 **Built for the "Pixel to Product" Hackathon**  
 *Organized by [Cloudinary](https://cloudinary.com/) in partnership with [HackIndia](https://hackindia.org/)*
