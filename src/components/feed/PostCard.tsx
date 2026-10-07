@@ -116,25 +116,22 @@ export function PostCard({
       video: video,
       onActivate: (unmuted) => {
         setIsPlaying(true);
-        // Only restart from beginning on scroll-in activation, NOT when user manually resumes
         if (isScrollActivationRef.current) {
           try {
             video.currentTime = 0;
           } catch (_) {}
         }
-        isScrollActivationRef.current = false; // subsequent activations are not scroll-fresh
+        isScrollActivationRef.current = false;
         video.loop = true;
         video.playsInline = true;
-        if (unmuted) {
-          video.muted = false;
-          video.volume = 1.0;
-        } else {
-          video.muted = true;
-        }
+
+        const isUnmutedAllowed = unmuted && videoCoordinator.hasInteracted();
+        video.muted = !isUnmutedAllowed;
+        video.volume = isUnmutedAllowed ? 1.0 : 0;
+
         const playPromise = video.play();
         if (playPromise !== undefined) {
           playPromise.catch(() => {
-            // Browser policy blocked unmuted autoplay before first user gesture:
             video.muted = true;
             video.play().then(() => setIsPlaying(true)).catch(() => {});
           });
@@ -485,7 +482,7 @@ export function PostCard({
                 preload="metadata"
                 loop
                 playsInline
-                muted={!isSoundOn}
+                muted={!videoCoordinator.hasInteracted() ? true : !isSoundOn}
                 onPlay={() => {
                   setIsPlaying(true);
                   videoCoordinator.onVideoStartedPlaying(post.id, videoRef.current);
