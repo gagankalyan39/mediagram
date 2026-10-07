@@ -142,10 +142,7 @@ export function PostCard({
       },
       onDeactivate: () => {
         video.pause();
-        try {
-          video.currentTime = 0; // Rewind to 0 so when scrolled back to, it is at the beginning
-        } catch (_) {}
-        isScrollActivationRef.current = true; // Next activation is a fresh scroll-in
+        isScrollActivationRef.current = true;
         setIsPlaying(false);
         video.muted = true;
       },
@@ -162,13 +159,26 @@ export function PostCard({
     const video = videoRef.current;
     if (!video) return;
     isManuallyPausedRef.current = false;
-    // Don't reset to zero when user clicks play — resume from current position
     isScrollActivationRef.current = false;
-    // Resume directly instead of routing through coordinator to avoid currentTime reset
+
+    // Enforce strictly that only THIS video plays across the entire page
+    videoCoordinator.playVideo(post.id);
+
     video.muted = !videoCoordinator.isSoundOn();
     video.volume = videoCoordinator.isSoundOn() ? 1.0 : 0;
-    video.play().catch(() => {});
-    setIsPlaying(true);
+    const playPromise = video.play();
+    if (playPromise !== undefined) {
+      playPromise
+        .then(() => {
+          setIsPlaying(true);
+        })
+        .catch(() => {
+          video.muted = true;
+          video.play().then(() => setIsPlaying(true)).catch(() => {});
+        });
+    } else {
+      setIsPlaying(true);
+    }
   };
 
   const pauseVideo = () => {
@@ -177,6 +187,7 @@ export function PostCard({
     isManuallyPausedRef.current = true;
     video.pause();
     setIsPlaying(false);
+    videoCoordinator.onVideoManuallyPaused(post.id);
   };
 
   const toggleMute = (e: React.MouseEvent) => {
@@ -475,6 +486,16 @@ export function PostCard({
                 loop
                 playsInline
                 muted={!isSoundOn}
+                onPlay={() => {
+                  setIsPlaying(true);
+                  videoCoordinator.onVideoStartedPlaying(post.id, videoRef.current);
+                }}
+                onPause={() => {
+                  setIsPlaying(false);
+                }}
+                onEnded={() => {
+                  setIsPlaying(false);
+                }}
                 className="w-full h-full object-cover cursor-pointer"
               />
 
