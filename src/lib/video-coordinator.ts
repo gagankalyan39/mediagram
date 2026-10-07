@@ -5,13 +5,9 @@
  * 
  * Rules enforced:
  * 1. STRICTLY ONE video can play at any time across the entire application and feed.
- * 2. ONLY the particular video the user plays is allowed to play.
- * 3. All other videos are paused immediately when any video starts playing.
- * 4. Other videos NEVER play automatically in the background or while another video is playing.
- * 5. As the user scrolls, if the playing video goes off-screen, it pauses to save resources.
- * 6. Browser autoplay policy handling: If browser blocks unmuted audio before user interaction,
- *    temporarily plays muted and unmuted on user gesture.
- * 7. Persistent sound preference across posts and reels.
+ * 2. As the user scrolls, ONLY the video currently on screen (closest to viewport center) plays.
+ * 3. All other videos are paused and muted immediately — zero audio/video overlap.
+ * 4. Persistent sound preference across posts and reels.
  */
 
 export interface VideoEntry {
@@ -68,10 +64,11 @@ class VideoCoordinator {
         const targetVideo = event.target as HTMLVideoElement;
         if (!targetVideo || targetVideo.tagName !== 'VIDEO') return;
 
-        // Immediately pause every other video element in the entire DOM
+        // Immediately pause and mute every other video element in the entire DOM
         document.querySelectorAll('video').forEach((v) => {
           if (v !== targetVideo && !v.paused) {
             v.pause();
+            v.muted = true;
           }
         });
       },
@@ -82,7 +79,7 @@ class VideoCoordinator {
     const onViewportChange = () => {
       if (this.rafId !== null) return;
       this.rafId = requestAnimationFrame(() => {
-        this.handleViewportChange();
+        this.updateActiveVideo();
         this.rafId = null;
       });
     };
@@ -94,19 +91,23 @@ class VideoCoordinator {
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) {
         this.pauseActive();
+      } else {
+        this.updateActiveVideo();
       }
     });
 
-    // Periodic safety check: if the active playing video scrolled completely off screen, pause it
+    // Periodic check (every 500ms) to ensure state never desyncs during fast scroll
     this.checkInterval = setInterval(() => {
       if (!this.isModalOpen && !document.hidden && this.entries.size > 0) {
-        this.handleViewportChange();
+        this.updateActiveVideo();
       }
-    }, 1000);
+    }, 500);
   }
 
   public register(entry: VideoEntry): () => void {
     this.entries.set(entry.id, entry);
+    // Queue evaluation for active video on scroll-in/mount
+    requestAnimationFrame(() => this.updateActiveVideo());
 
     return () => {
       if (this.activeId === entry.id) {
@@ -117,64 +118,130 @@ class VideoCoordinator {
     };
   }
 
-  public handleViewportChange() {
+  public updateActiveVideo() {
     if (this.isModalOpen || typeof window === 'undefined' || this.entries.size === 0) {
       return;
     }
 
-    const windowHeight = window.innerHeight;
+    if (document.hidden) {
+      this.pauseActive();
+      return;
+    }
 
-    // If there is currently an active video that is playing:
-    if (this.activeId) {
-      const activeEntry = this.entries.get(this.activeId);
-      if (activeEntry && activeEntry.video && !activeEntry.video.paused) {
-        if (activeEntry.element) {
-          const rect = activeEntry.element.getBoundingClientRect();
-          // If scrolled completely off-screen, pause it so it doesn't run in the background
-          if (rect.bottom <= 60 || rect.top >= windowHeight - 60) {
-            activeEntry.onDeactivate();
-            this.activeId = null;
-            this.notify();
-          } else {
-            // The active video is playing and visible: ensure strictly NO other video is playing
-            this.entries.forEach((entry, id) => {
-              if (id !== this.activeId && entry.video && !entry.video.paused) {
-                entry.onDeactivate();
-              }
-            });
-            return;
-          }
+    const windowHeight = window.innerHeight;
+    const viewportCenter = windowHeight / 2;
+
+    let bestId: string | null = null;
+    let bestScore = -Infinity;
+
+    for (const [id, entry] of this.entries.entries()) {
+      if (!entry.element || !entry.video) continue;
+
+      const rect = entry.element.getBoundingClientRect();
+
+      // Completely outside viewport?
+      if (rect.bottom <= 40 || rect.top >= windowHeight - 40) {
+        entry.resetManualPause();
+        if (!entry.video.paused) {
+          entry.onDeactivate();
         }
+        continue;
+      }
+
+      // Calculate vertical visibility
+      const visibleTop = Math.max(0, rect.top);
+      const visibleBottom = Math.min(windowHeight, rect.bottom);
+      const visibleHeight = Math.max(0, visibleBottom - visibleTop);
+      const visibilityRatio = visibleHeight / Math.max(1, rect.height);
+
+      // Must be at least 25% visible to qualify as active
+      if (visibilityRatio < 0.25) {
+        if (!entry.video.paused && id !== this.activeId) {
+          entry.onDeactivate();
+        }
+        continue;
+      }
+
+      // Distance from element center to screen center
+      const elementCenter = rect.top + rect.height / 2;
+      const distFromCenter = Math.abs(elementCenter - viewportCenter);
+      const normDist = distFromCenter / (windowHeight / 2);
+
+      // Respect user's explicit pause if user manually paused this video while on screen
+      if (entry.isManuallyPaused()) {
+        continue;
+      }
+
+      // Score: high visibility ratio + proximity to center of screen
+      const score = visibilityRatio * 2.5 - normDist;
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestId = id;
+      }
+    }
+
+    if (bestId !== this.activeId) {
+      // 1. Deactivate previously active video
+      if (this.activeId) {
+        const prev = this.entries.get(this.activeId);
+        if (prev) {
+          prev.onDeactivate();
+        }
+      }
+
+      this.activeId = bestId;
+
+      // 2. Activate the new primary video on screen!
+      if (bestId) {
+        const next = this.entries.get(bestId);
+        if (next) {
+          next.onActivate(this.soundEnabled);
+        }
+      }
+
+      // 3. Strictly pause & mute all other video elements in the DOM
+      if (typeof document !== 'undefined') {
+        const activeEntry = bestId ? this.entries.get(bestId) : null;
+        const activeVid = activeEntry?.video;
+        document.querySelectorAll('video').forEach((v) => {
+          if (v !== activeVid) {
+            v.pause();
+            v.muted = true;
+          }
+        });
+      }
+
+      this.notify();
+    } else if (bestId && this.activeId === bestId) {
+      // Ensure the active video is actually playing if not manually paused
+      const cur = this.entries.get(bestId);
+      if (cur && !cur.isManuallyPaused() && cur.video.paused) {
+        cur.onActivate(this.soundEnabled);
       }
     }
   }
 
-  public updateActiveVideo() {
-    this.handleViewportChange();
-  }
-
-  /**
-   * Explicitly play a specific video.
-   * Guarantees that ALL other videos are immediately paused and only this video plays.
-   */
   public playVideo(id: string) {
     this.userHasInteracted = true;
-    this.activeId = id;
-
-    // 1. Immediately deactivate and pause every other registered entry
+    
+    // Deactivate all other registered entries
     this.entries.forEach((entry, entryId) => {
       if (entryId !== id) {
         entry.onDeactivate();
       }
     });
 
-    // 2. Pause every other video in the entire DOM
+    this.activeId = id;
+
+    // Pause all other video elements in DOM
     if (typeof document !== 'undefined') {
       const activeEntry = this.entries.get(id);
       const activeVid = activeEntry?.video;
       document.querySelectorAll('video').forEach((v) => {
         if (v !== activeVid && !v.paused) {
           v.pause();
+          v.muted = true;
         }
       });
     }
@@ -182,31 +249,27 @@ class VideoCoordinator {
     const current = this.entries.get(id);
     if (current) {
       current.resetManualPause();
+      current.onActivate(this.soundEnabled);
     }
 
     this.notify();
   }
 
-  /**
-   * Called when any registered video starts playing (e.g. from native onPlay event).
-   * Ensures that all other videos are immediately paused.
-   */
   public onVideoStartedPlaying(id: string, videoElement: HTMLVideoElement | null) {
     this.userHasInteracted = true;
     this.activeId = id;
 
-    // 1. Deactivate all other registered entries
     this.entries.forEach((entry, entryId) => {
       if (entryId !== id) {
         entry.onDeactivate();
       }
     });
 
-    // 2. Pause any other video in the DOM
     if (typeof document !== 'undefined') {
       document.querySelectorAll('video').forEach((v) => {
         if (v !== videoElement && !v.paused) {
           v.pause();
+          v.muted = true;
         }
       });
     }
@@ -215,9 +278,7 @@ class VideoCoordinator {
   }
 
   public onVideoManuallyPaused(id: string) {
-    if (this.activeId === id) {
-      // Keep activeId marked as paused
-    }
+    // Keep activeId marked
   }
 
   public setActiveManually(id: string) {
@@ -232,7 +293,10 @@ class VideoCoordinator {
     }
     if (typeof document !== 'undefined') {
       document.querySelectorAll('video').forEach((v) => {
-        if (!v.paused) v.pause();
+        if (!v.paused) {
+          v.pause();
+          v.muted = true;
+        }
       });
     }
     this.notify();
@@ -245,7 +309,10 @@ class VideoCoordinator {
     this.activeId = null;
     if (typeof document !== 'undefined') {
       document.querySelectorAll('video').forEach((v) => {
-        if (!v.paused) v.pause();
+        if (!v.paused) {
+          v.pause();
+          v.muted = true;
+        }
       });
     }
     this.notify();
@@ -255,6 +322,8 @@ class VideoCoordinator {
     this.isModalOpen = open;
     if (open) {
       this.pauseActive();
+    } else {
+      setTimeout(() => this.updateActiveVideo(), 100);
     }
   }
 
